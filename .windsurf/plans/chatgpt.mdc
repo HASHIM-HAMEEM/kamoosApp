@@ -1,0 +1,7 @@
+---
+alwaysApply: true
+---
+1  - never use dynamic imports (unless asked to) like `await import(..)`
+2  - never cast to `any`
+3  - do not add extra defensive checks or try/catch blocks
+---

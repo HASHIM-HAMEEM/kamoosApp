@@ -1,0 +1,163 @@
+Here is the **full SQLite database schema and structure**. This listing contains all user tables, system tables, their CREATE statements, and the detailed structure of each table, including columns, types, and primary keys. No views, triggers, or foreign keys are present in this database:[1]
+
+***
+
+**CREATE statements for all tables:**
+- `CREATE TABLE android_metadata (locale TEXT)`
+- `CREATE TABLE sqlite_stat1(tbl,idx,stat)`
+- `CREATE TABLE sqlite_stat4(tbl,idx,neq,nlt,ndlt,sample)`
+- `CREATE TABLE "mujamul_muashiroh" ("id" INTEGER, "word" TEXT, "meaning" TEXT)`
+- `CREATE TABLE "mujamul_wasith" ("id" INTEGER PRIMARY KEY AUTOINCREMENT, "word" TEXT, "meaning" TEXT)`
+- `CREATE TABLE sqlite_sequence(name,seq)`
+- `CREATE TABLE "mujamul_muhith" ("id" INTEGER PRIMARY KEY AUTOINCREMENT, "word" TEXT, "meaning" TEXT)`
+- `CREATE TABLE "mujamul_shihah" ("id" INTEGER PRIMARY KEY AUTOINCREMENT, "word" TEXT, "meaning" TEXT)`
+- `CREATE TABLE "mujamul_ghoni" ("arabic_id" INTEGER PRIMARY KEY AUTOINCREMENT, "arabic_word" TEXT, "arabic_root" TEXT, "arabic_meanings" TEXT, "arabic_noharokah" TEXT)`
+- `CREATE TABLE "quran" ("ID" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, "surat" INTEGER NOT NULL, "ayat" INTEGER NOT NULL, "arab" TEXT CHARACTER NOT NULL, "arabic_noharokah" TEXT CHARACTER NOT NULL, "nama_surat" TEXT CHARACTER, "tafsir" TEXT CHARACTER)`
+- `CREATE TABLE "ghoribulquran" ("id" INTEGER PRIMARY KEY AUTOINCREMENT, "ayah" TEXT, "meaning" TEXT, "arabic_noharokah" TEXT, "surah_name" TEXT, "id_surah" INTEGER, "id_ayah" TEXT)`
+- `CREATE TABLE "lisanularab" ("arabic_id" INTEGER PRIMARY KEY AUTOINCREMENT, "arabic_meanings" TEXT, "arabic_noharokah" TEXT)`
+
+***
+
+**Detailed Table Structures:**
+
+- **android_metadata**
+  - locale: TEXT
+
+- **sqlite_stat1**
+  - tbl
+  - idx
+  - stat
+
+- **sqlite_stat4**
+  - tbl
+  - idx
+  - neq
+  - nlt
+  - ndlt
+  - sample
+
+- **mujamul_muashiroh**
+  - id: INTEGER
+  - word: TEXT
+  - meaning: TEXT
+
+- **mujamul_wasith**
+  - id: INTEGER PRIMARY KEY AUTOINCREMENT
+  - word: TEXT
+  - meaning: TEXT
+
+- **sqlite_sequence**
+  - name
+  - seq
+
+- **mujamul_muhith**
+  - id: INTEGER PRIMARY KEY AUTOINCREMENT
+  - word: TEXT
+  - meaning: TEXT
+
+- **mujamul_shihah**
+  - id: INTEGER PRIMARY KEY AUTOINCREMENT
+  - word: TEXT
+  - meaning: TEXT
+
+- **mujamul_ghoni**
+  - arabic_id: INTEGER PRIMARY KEY AUTOINCREMENT
+  - arabic_word: TEXT
+  - arabic_root: TEXT
+  - arabic_meanings: TEXT
+  - arabic_noharokah: TEXT
+
+- **quran**
+  - ID: INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT
+  - surat: INTEGER NOT NULL
+  - ayat: INTEGER NOT NULL
+  - arab: TEXT CHARACTER NOT NULL
+  - arabic_noharokah: TEXT CHARACTER NOT NULL
+  - nama_surat: TEXT CHARACTER
+  - tafsir: TEXT CHARACTER
+
+- **ghoribulquran**
+  - id: INTEGER PRIMARY KEY AUTOINCREMENT
+  - ayah: TEXT
+  - meaning: TEXT
+  - arabic_noharokah: TEXT
+  - surah_name: TEXT
+  - id_surah: INTEGER
+  - id_ayah: TEXT
+
+- **lisanularab**
+  - arabic_id: INTEGER PRIMARY KEY AUTOINCREMENT
+  - arabic_meanings: TEXT
+  - arabic_noharokah: TEXT
+
+***
+
+**Summary of constraints, keys, and relationships:**
+- Each main user table uses an `INTEGER PRIMARY KEY AUTOINCREMENT` field.
+- No custom indexes, foreign keys, views, or triggers are present.
+- System tables (sqlite_sequence, sqlite_stat1, sqlite_stat4) are present for internal bookkeeping.
+
+This is the **complete schema and structure** for your SQLite database with all details included.[1]
+
+
+------------------------------------
+
+schema
+
+
+
+CREATE TABLE "ghoribulquran" (
+	"id"	INTEGER PRIMARY KEY AUTOINCREMENT,
+	"ayah"	TEXT,
+	"meaning"	TEXT,
+	"arabic_noharokah"	TEXT,
+	"surah_name"	TEXT,
+	"id_surah"	INTEGER,
+	"id_ayah"	TEXT
+)
+
+CREATE TABLE "lisanularab" (
+	"arabic_id"	INTEGER PRIMARY KEY AUTOINCREMENT,
+	"arabic_meanings"	TEXT,
+	"arabic_noharokah"	TEXT
+)
+
+CREATE TABLE "mujamul_ghoni" (
+	"arabic_id"	INTEGER PRIMARY KEY AUTOINCREMENT,
+	"arabic_word"	TEXT,
+	"arabic_root"	TEXT,
+	"arabic_meanings"	TEXT,
+	"arabic_noharokah"	TEXT
+)
+CREATE TABLE "mujamul_muashiroh" (
+	"id"	INTEGER,
+	"word"	TEXT,
+	"meaning"	TEXT
+)
+
+CREATE TABLE "mujamul_muhith" (
+	"id"	INTEGER PRIMARY KEY AUTOINCREMENT,
+	"word"	TEXT,
+	"meaning"	TEXT
+)
+
+CREATE TABLE "mujamul_shihah" (
+	"id"	INTEGER PRIMARY KEY AUTOINCREMENT,
+	"word"	TEXT,
+	"meaning"	TEXT
+)
+
+CREATE TABLE "mujamul_wasith" (
+	"id"	INTEGER PRIMARY KEY AUTOINCREMENT,
+	"word"	TEXT,
+	"meaning"	TEXT
+)
+CREATE TABLE "quran" (
+	"ID"	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+	"surat"	INTEGER NOT NULL,
+	"ayat"	INTEGER NOT NULL,
+	"arab"	TEXT CHARACTER NOT NULL,
+	"arabic_noharokah"	TEXT CHARACTER NOT NULL,
+	"nama_surat"	TEXT CHARACTER,
+	"tafsir"	TEXT CHARACTER
+)
