@@ -73,6 +73,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
   sqflite_common_ffi: ^2.3.0
+  image: ^4.1.7
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -109,7 +110,11 @@ flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/logo/DLogo.png"
+  image_path_android: "assets/logo/icon_android.png"
   min_sdk_android: 21
+  adaptive_icon_background: "#0A0A0A"
+  adaptive_icon_foreground: "assets/logo/icon_android.png"
+  remove_alpha_ios: true
   web:
     generate: true
     image_path: "assets/logo/DLogo.png"
