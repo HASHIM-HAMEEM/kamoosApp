@@ -544,7 +544,7 @@ class _QamusHomeScreenState extends State<QamusHomeScreen> {
                       child: Stack(
                         children: [
                           Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 'WORD OF THE DAY',
@@ -555,29 +555,37 @@ class _QamusHomeScreenState extends State<QamusHomeScreen> {
                                 ),
                               ),
                               const SizedBox(height: 16),
-                              Directionality(
-                                textDirection: TextDirection.rtl,
-                                child: Text(
-                                  _wordOfTheDay!.word,
-                                  style: AppTheme.arabicTextStyle(
-                                    context,
-                                    fontSize: 36,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: Directionality(
+                                  textDirection: TextDirection.rtl,
+                                  child: Text(
+                                    _wordOfTheDay!.word,
+                                    style: AppTheme.arabicTextStyle(
+                                      context,
+                                      fontSize: 36,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                    ),
                                   ),
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              Directionality(
-                                textDirection: TextDirection.rtl,
-                                child: Text(
-                                  _getMeaningPreview(_wordOfTheDay!.meaning),
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    color: Colors.white.withValues(alpha: 0.9),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: Directionality(
+                                  textDirection: TextDirection.rtl,
+                                  child: Text(
+                                    _getMeaningPreview(_wordOfTheDay!.meaning),
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      color: Colors.white.withValues(
+                                        alpha: 0.9,
+                                      ),
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ],
