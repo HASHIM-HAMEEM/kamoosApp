@@ -149,4 +149,16 @@ class Word {
       ayahNumber: source == DictionarySource.ghoribulquran ? parseInt(map['id_ayah']) : null,
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is Word &&
+        other.word == word &&
+        other.meaning == meaning &&
+        other.source == source;
+  }
+
+  @override
+  int get hashCode => Object.hash(word, meaning, source);
 }
