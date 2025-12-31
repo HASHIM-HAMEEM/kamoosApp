@@ -14,12 +14,12 @@ enum DictionarySource {
   const DictionarySource(this.arabicName, this.tableName);
 
   static List<DictionarySource> get searchableDictionaries => [
-        muashiroh,
-        wasith,
-        muhith,
-        shihah,
-        ghoni,
-        lisanularab,
-        ghoribulquran,
-      ];
+    muashiroh,
+    wasith,
+    muhith,
+    shihah,
+    ghoni,
+    lisanularab,
+    ghoribulquran,
+  ];
 }

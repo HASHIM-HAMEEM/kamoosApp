@@ -4,7 +4,7 @@ import '../utils/app_localizations.dart';
 
 class SettingsService extends ChangeNotifier {
   final DatabaseService _db;
-  
+
   Locale _locale = const Locale('en');
   bool _showDiacritics = true;
   bool _isLoaded = false;
@@ -26,7 +26,7 @@ class SettingsService extends ChangeNotifier {
     if (langCode != null) {
       _locale = Locale(langCode);
     }
-    
+
     if (diacritics != null) {
       _showDiacritics = diacritics == 'true';
     }

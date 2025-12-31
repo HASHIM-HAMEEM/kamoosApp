@@ -42,57 +42,70 @@ class _ResultScreenState extends State<ResultScreen> {
       _errorMessage = null;
     });
 
+    final searchService = Provider.of<SearchService>(context, listen: false);
+    final apiService = Provider.of<ApiService?>(context, listen: false);
+
+    final dbFuture = searchService.getDictionaryEntries(
+      widget.wordText,
+      source: widget.filterSource,
+    );
+
+    final Future<Word?>? aiFuture =
+        apiService?.getWordMeaning(widget.wordText);
+
+    List<Word> localResults = [];
+    String? loadError;
     try {
-      final searchService = Provider.of<SearchService>(context, listen: false);
-      final apiService = Provider.of<ApiService?>(context, listen: false);
-
-      // Start both fetches in parallel
-      final dbFuture = searchService.getDictionaryEntries(
-        widget.wordText,
-        source: widget.filterSource,
-      );
-
-      Future<Word?>? aiFuture;
-      if (apiService != null) {
-        // Only fetch AI if we have the service
-        // We can also check if we already have it in cache via SearchService,
-        // but SearchService.searchWord does that.
-        // Here we want explicit control.
-        // Let's use SearchService's searchWord for AI to leverage cache,
-        // but we need to force it to ONLY return AI if we want strict separation?
-        // Actually, apiService.getWordMeaning is direct.
-        aiFuture = apiService.getWordMeaning(widget.wordText);
-      }
-
-      // Wait for both
-      final List<Word> localResults = await dbFuture;
-      final Word? aiResult = aiFuture != null ? await aiFuture : null;
-
-      // Combine results: AI first, then Local
-      final List<Word> combinedResults = [];
-
-      if (aiResult != null) {
-        combinedResults.add(aiResult);
-      }
-
-      combinedResults.addAll(localResults);
-
-      if (mounted) {
-        setState(() {
-          if (combinedResults.isNotEmpty) {
-            _results = combinedResults;
-          } else {
-            _errorMessage = 'No results found';
-          }
-          _isLoading = false;
-        });
-      }
+      localResults = await dbFuture;
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Error: $e';
-          _isLoading = false;
-        });
+      loadError = 'Error: $e';
+    }
+
+    if (!mounted) return;
+
+    final combinedResults = <Word>[];
+    if (widget.initialWord != null) {
+      final initial = widget.initialWord!;
+      final exists = localResults.any(
+        (w) =>
+            w.word == initial.word &&
+            w.meaning == initial.meaning &&
+            w.source == initial.source,
+      );
+      if (!exists) {
+        combinedResults.add(initial);
+      }
+    }
+    combinedResults.addAll(localResults);
+
+    setState(() {
+      if (combinedResults.isNotEmpty) {
+        _results = combinedResults;
+        _errorMessage = null;
+      } else {
+        _errorMessage = loadError ?? 'No results found';
+      }
+      _isLoading = false;
+    });
+
+    if (aiFuture != null) {
+      try {
+        final aiResult = await aiFuture;
+        if (!mounted || aiResult == null) return;
+        final alreadyShown = _results.any(
+          (w) =>
+              w.word == aiResult.word &&
+              w.meaning == aiResult.meaning &&
+              w.source == aiResult.source,
+        );
+        if (!alreadyShown) {
+          setState(() {
+            _results = [aiResult, ..._results];
+            _errorMessage = null;
+          });
+        }
+      } catch (e) {
+        debugPrint('AI fetch failed: $e');
       }
     }
   }

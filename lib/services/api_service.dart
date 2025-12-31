@@ -23,10 +23,10 @@ class ApiService {
   static const Duration _initialRetryDelay = Duration(milliseconds: 500);
 
   ApiService({this.apiKey, String? modelName, http.Client? client})
-      : modelName = (modelName != null && modelName.trim().isNotEmpty)
-            ? modelName.trim()
-            : 'gemini-2.0-flash-exp',
-        _client = client ?? http.Client() {
+    : modelName = (modelName != null && modelName.trim().isNotEmpty)
+          ? modelName.trim()
+          : 'gemini-2.0-flash-exp',
+      _client = client ?? http.Client() {
     if (apiKey == null || apiKey!.isEmpty) {
       throw Exception('API key is required for Gemini service');
     }
@@ -63,7 +63,8 @@ class ApiService {
       ],
       'generationConfig': {
         'maxOutputTokens': maxOutputTokens,
-        'temperature': 0.1, // Lower temperature for more consistent, accurate results
+        'temperature':
+            0.1, // Lower temperature for more consistent, accurate results
         'topP': 0.95,
         'topK': 40,
         'responseMimeType': 'application/json',
@@ -71,8 +72,14 @@ class ApiService {
       },
       'safetySettings': [
         {'category': 'HARM_CATEGORY_HATE_SPEECH', 'threshold': 'BLOCK_NONE'},
-        {'category': 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'threshold': 'BLOCK_NONE'},
-        {'category': 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold': 'BLOCK_NONE'},
+        {
+          'category': 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+          'threshold': 'BLOCK_NONE',
+        },
+        {
+          'category': 'HARM_CATEGORY_DANGEROUS_CONTENT',
+          'threshold': 'BLOCK_NONE',
+        },
         {'category': 'HARM_CATEGORY_HARASSMENT', 'threshold': 'BLOCK_NONE'},
       ],
     };
@@ -83,12 +90,20 @@ class ApiService {
       body: jsonEncode(requestBody),
     );
 
-    debugPrint('📥 Received response from Gemini ($label) with status ${response.statusCode}');
+    debugPrint(
+      '📥 Received response from Gemini ($label) with status ${response.statusCode}',
+    );
 
     if (response.statusCode != 200) {
-      debugPrint('❌ Gemini API HTTP error: ${response.statusCode} ${response.reasonPhrase}');
-      debugPrint('Response body: ${response.body.substring(0, response.body.length > 500 ? 500 : response.body.length)}');
-      throw http.ClientException('API returned ${response.statusCode}: ${response.reasonPhrase}');
+      debugPrint(
+        '❌ Gemini API HTTP error: ${response.statusCode} ${response.reasonPhrase}',
+      );
+      debugPrint(
+        'Response body: ${response.body.substring(0, response.body.length > 500 ? 500 : response.body.length)}',
+      );
+      throw http.ClientException(
+        'API returned ${response.statusCode}: ${response.reasonPhrase}',
+      );
     }
 
     final rawBody = response.body;
@@ -102,7 +117,9 @@ class ApiService {
 
     String? text;
     for (final candidate in candidates) {
-      final content = candidate is Map<String, dynamic> ? candidate['content'] : null;
+      final content = candidate is Map<String, dynamic>
+          ? candidate['content']
+          : null;
       final parts = content is Map<String, dynamic> ? content['parts'] : null;
 
       if (parts is List) {
@@ -153,7 +170,9 @@ class ApiService {
       final result = await requestFuture;
       if (result != null) {
         _cache[normalizedWord] = result;
-        debugPrint('✅ Cached result for: "$normalizedWord" (cache size: ${_cache.length})');
+        debugPrint(
+          '✅ Cached result for: "$normalizedWord" (cache size: ${_cache.length})',
+        );
       }
       return result;
     } finally {
@@ -174,7 +193,9 @@ class ApiService {
         final result = await _makeApiRequest(word).timeout(
           _requestTimeout,
           onTimeout: () {
-            throw TimeoutException('API request timed out after $_requestTimeout');
+            throw TimeoutException(
+              'API request timed out after $_requestTimeout',
+            );
           },
         );
 
@@ -240,14 +261,17 @@ class ApiService {
       // Attempt to extract JSON from response
       int startIndex = response.indexOf('{');
       int endIndex = response.lastIndexOf('}') + 1;
-      
+
       if (startIndex != -1 && endIndex != 0) {
         String jsonString = response.substring(startIndex, endIndex);
         Map<String, dynamic> jsonData = json.decode(jsonString);
 
         return Word(
           word: originalWord,
-          meaning: _stringify(jsonData['meaning_ar']) ?? _stringify(jsonData['meaning']) ?? 'Meaning not available',
+          meaning:
+              _stringify(jsonData['meaning_ar']) ??
+              _stringify(jsonData['meaning']) ??
+              'Meaning not available',
           meaningEn: _stringify(jsonData['meaning_en']),
           meaningUr: _stringify(jsonData['meaning_ur']),
           rootWord: _stringify(jsonData['root_word']),
@@ -257,17 +281,11 @@ class ApiService {
         );
       } else {
         // If JSON parsing fails, return a basic word with the full response as meaning
-        return Word(
-          word: originalWord,
-          meaning: response,
-        );
+        return Word(word: originalWord, meaning: response);
       }
     } catch (e) {
       debugPrint('Failed to parse Gemini response: $e');
-      return Word(
-        word: originalWord,
-        meaning: response,
-      );
+      return Word(word: originalWord, meaning: response);
     }
   }
 
@@ -276,11 +294,16 @@ class ApiService {
     if (value is String) return value;
     if (value is num || value is bool) return value.toString();
     if (value is List) {
-      return value.map((item) => _stringify(item) ?? '').where((item) => item.isNotEmpty).join('; ');
+      return value
+          .map((item) => _stringify(item) ?? '')
+          .where((item) => item.isNotEmpty)
+          .join('; ');
     }
     if (value is Map) {
       return value.entries
-          .map((entry) => '${entry.key}: ${_stringify(entry.value) ?? ''}'.trim())
+          .map(
+            (entry) => '${entry.key}: ${_stringify(entry.value) ?? ''}'.trim(),
+          )
           .where((entry) => entry.trim().isNotEmpty)
           .join('\n');
     }

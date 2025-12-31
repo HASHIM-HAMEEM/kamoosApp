@@ -5,11 +5,7 @@ class WordCard extends StatelessWidget {
   final Word word;
   final VoidCallback onTap;
 
-  const WordCard({
-    super.key,
-    required this.word,
-    required this.onTap,
-  });
+  const WordCard({super.key, required this.word, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -91,11 +87,18 @@ class WordCard extends StatelessWidget {
   }
 
   String _formatMeaningPreview(String meaning) {
-    final withBreaks = meaning.replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n');
+    final withBreaks = meaning.replaceAll(
+      RegExp(r'<br\s*/?>', caseSensitive: false),
+      '\n',
+    );
     final withoutTags = withBreaks.replaceAll(RegExp(r'<[^>]+>'), ' ');
-    final normalizedLines = withoutTags.split('\n').map((line) {
-      return line.replaceAll(RegExp(r'\s+'), ' ').trim();
-    }).where((line) => line.isNotEmpty).join('\n');
+    final normalizedLines = withoutTags
+        .split('\n')
+        .map((line) {
+          return line.replaceAll(RegExp(r'\s+'), ' ').trim();
+        })
+        .where((line) => line.isNotEmpty)
+        .join('\n');
     if (normalizedLines.isEmpty) {
       return withoutTags.replaceAll(RegExp(r'\s+'), ' ').trim();
     }

@@ -55,12 +55,8 @@ class _DictionaryCardState extends State<DictionaryCard> {
     final colors = AppTheme.colors(context);
     final settings = Provider.of<SettingsService>(context);
     final sourceName = widget.isAi
-        ? 'fin'
+        ? settings.strings.get('ai_source')
         : (widget.word.source?.arabicName ?? 'Unknown Source');
-
-    // Apply diacritics setting to the word
-    // The `displayWord` variable was removed as it was unused.
-    // The `settings` variable is still used for `settings.strings.get('copied')`.
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -363,6 +359,7 @@ class _AddToCollectionSheetState extends State<_AddToCollectionSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = AppTheme.colors(context);
+    final settings = Provider.of<SettingsService>(context, listen: false);
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: Provider.of<DatabaseService>(
         context,
@@ -382,7 +379,7 @@ class _AddToCollectionSheetState extends State<_AddToCollectionSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Add to Collection',
+                settings.strings.get('add_to_collection'),
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
@@ -395,7 +392,7 @@ class _AddToCollectionSheetState extends State<_AddToCollectionSheet> {
                   padding: const EdgeInsets.symmetric(vertical: 20),
                   child: Center(
                     child: Text(
-                      'No collections found',
+                      settings.strings.get('no_collections_found'),
                       style: TextStyle(color: colors.textSecondary),
                     ),
                   ),
@@ -413,16 +410,16 @@ class _AddToCollectionSheetState extends State<_AddToCollectionSheet> {
                         context,
                         listen: false,
                       ).addToCollection(c['id'], widget.word);
-                      if (mounted) {
-                        if (context.mounted) {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Added to ${c['name']}'),
-                              backgroundColor: colors.accent,
+                      if (mounted && context.mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              '${settings.strings.get('added_to_collection')} ${c['name']}',
                             ),
-                          );
-                        }
+                            backgroundColor: colors.accent,
+                          ),
+                        );
                       }
                     },
                   ),

@@ -30,10 +30,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     final db = Provider.of<DatabaseService>(context, listen: false);
 
     try {
-      // Fetch random words for all searchable dictionaries
-      for (var source in DictionarySource.searchableDictionaries) {
-        final words = await db.getRandomWords(source: source, limit: 3);
-        _dictionaryWords[source] = words;
+      final futures = DictionarySource.searchableDictionaries.map(
+        (source) => db
+            .getRandomWords(source: source, limit: 3)
+            .then((words) => MapEntry(source, words)),
+      );
+
+      final results = await Future.wait(futures);
+
+      for (final entry in results) {
+        _dictionaryWords[entry.key] = entry.value;
       }
 
       if (mounted) {

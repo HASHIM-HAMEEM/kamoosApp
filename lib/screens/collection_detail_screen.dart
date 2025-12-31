@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/word.dart';
 import '../services/database_service.dart';
+import '../services/settings_service.dart';
 import '../ui/theme/app_theme.dart';
 import '../ui/theme/tokens.dart';
 import 'result_screen.dart';
@@ -48,19 +49,23 @@ class _CollectionDetailScreenState extends State<CollectionDetailScreen> {
   }
 
   Future<void> _deleteCollection() async {
+    final settings = Provider.of<SettingsService>(context, listen: false);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Collection'),
-        content: const Text('Are you sure you want to delete this collection?'),
+        title: Text(settings.strings.get('delete_collection')),
+        content: Text(settings.strings.get('delete_collection_confirm')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(settings.strings.get('cancel')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: Text(
+              settings.strings.get('delete'),
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -76,6 +81,7 @@ class _CollectionDetailScreenState extends State<CollectionDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = AppTheme.colors(context);
+    final settings = Provider.of<SettingsService>(context, listen: false);
 
     return Scaffold(
       backgroundColor: colors.bg,
@@ -103,7 +109,7 @@ class _CollectionDetailScreenState extends State<CollectionDetailScreen> {
           : _words.isEmpty
           ? Center(
               child: Text(
-                'No words in this collection yet',
+                settings.strings.get('no_words_collection'),
                 style: TextStyle(color: colors.textSecondary),
               ),
             )

@@ -43,7 +43,10 @@ dependencies:
   
   # HTTP client for Gemini API calls
   http: ^1.2.1
-  
+
+  # URL launcher for website links
+  url_launcher: ^6.3.0
+
   # State management
   provider: ^6.1.2
   

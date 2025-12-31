@@ -56,14 +56,18 @@ class _ExpandableCardState extends State<ExpandableCard> {
                         Text(
                           widget.subtitle!,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.6,
+                            ),
                           ),
                         ),
                     ],
                   ),
                 ),
                 Icon(
-                  _isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                  _isExpanded
+                      ? Icons.keyboard_arrow_up
+                      : Icons.keyboard_arrow_down,
                   color: theme.colorScheme.secondary,
                 ),
               ],
@@ -73,7 +77,9 @@ class _ExpandableCardState extends State<ExpandableCard> {
         AnimatedCrossFade(
           firstChild: const SizedBox(width: double.infinity),
           secondChild: widget.child,
-          crossFadeState: _isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          crossFadeState: _isExpanded
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
           duration: AppTokens.animDurationFast,
         ),
       ],

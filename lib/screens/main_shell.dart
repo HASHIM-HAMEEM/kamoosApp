@@ -1,12 +1,14 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'qamus_home_screen.dart';
 import 'library_screen.dart';
 import 'discover_screen.dart';
 import '../ui/theme/app_theme.dart';
 import '../ui/theme/tokens.dart';
 import '../services/settings_service.dart';
+import '../utils/app_localizations.dart';
 
 class MainShell extends StatefulWidget {
   final VoidCallback onToggleTheme;
@@ -228,11 +230,127 @@ class _MainShellState extends State<MainShell> {
               settings.showDiacritics,
               () => settings.toggleDiacritics(!settings.showDiacritics),
             ),
-            showBorder: false,
+          ),
+          const SizedBox(height: 24),
+
+          _buildDeveloperCard(colors, strings),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeveloperCard(AppColors colors, AppLocalizations strings) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            colors.accent.withValues(alpha: 0.1),
+            colors.accent.withValues(alpha: 0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: colors.accent.withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: colors.accent.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.code_rounded,
+                  color: colors.accent,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    strings.get('developer'),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    strings.get('developer_name'),
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: colors.text,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          InkWell(
+            onTap: () => _launchWebsite(),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: colors.accent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: colors.accent.withValues(alpha: 0.2),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.language_rounded,
+                    color: colors.accent,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    strings.get('visit_website'),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: colors.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.open_in_new_rounded,
+                    color: colors.accent,
+                    size: 14,
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _launchWebsite() async {
+    final Uri url = Uri.parse('https://hashimhameem.site');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      debugPrint('Could not launch $url');
+    }
   }
 
   String _getLanguageName(String code) {

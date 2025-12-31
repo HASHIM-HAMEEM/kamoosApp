@@ -14,7 +14,7 @@ class Word {
   DateTime? createdAt;
   DateTime? updatedAt;
   int? surahNumber; // For Quran context (ghoribulquran)
-  int? ayahNumber;  // For Quran context (ghoribulquran)
+  int? ayahNumber; // For Quran context (ghoribulquran)
 
   Word({
     this.id,
@@ -65,8 +65,12 @@ class Word {
       history: json['history'],
       examples: json['examples'],
       relatedWords: json['related_words'],
-      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : null,
-      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at']) : null,
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'])
+          : null,
+      updatedAt: json['updated_at'] != null
+          ? DateTime.parse(json['updated_at'])
+          : null,
       surahNumber: json['surah_number'],
       ayahNumber: json['ayah_number'],
     );
@@ -93,7 +97,10 @@ class Word {
       } else if (source == DictionarySource.lisanularab) {
         return map['arabic_meanings'] ?? '';
       }
-      return map['meaning'] ?? map['arabic_meanings'] ?? map['definition'] ?? '';
+      return map['meaning'] ??
+          map['arabic_meanings'] ??
+          map['definition'] ??
+          '';
     }
 
     // Extract root word
@@ -119,10 +126,14 @@ class Word {
           return 'سورة $surahName ($surahId:$ayahId)';
         }
       }
-      return map['history'] ?? map['etymology'] ?? map['origin'] ?? map['tafsir'];
+      return map['history'] ??
+          map['etymology'] ??
+          map['origin'] ??
+          map['tafsir'];
     }
 
-    int? parseInt(dynamic v) => v is int ? v : int.tryParse(v?.toString() ?? '');
+    int? parseInt(dynamic v) =>
+        v is int ? v : int.tryParse(v?.toString() ?? '');
 
     return Word(
       id: map['id'] ?? map['arabic_id'] ?? map['ID'],
@@ -135,18 +146,22 @@ class Word {
       examples: extractExamples(),
       relatedWords: map['related_words'] ?? map['related'] ?? map['synonyms'],
       source: source,
-      createdAt: map['created_at'] != null 
-          ? (map['created_at'] is String 
-              ? DateTime.parse(map['created_at']) 
-              : DateTime.fromMillisecondsSinceEpoch(map['created_at']))
+      createdAt: map['created_at'] != null
+          ? (map['created_at'] is String
+                ? DateTime.parse(map['created_at'])
+                : DateTime.fromMillisecondsSinceEpoch(map['created_at']))
           : null,
-      updatedAt: map['updated_at'] != null 
-          ? (map['updated_at'] is String 
-              ? DateTime.parse(map['updated_at']) 
-              : DateTime.fromMillisecondsSinceEpoch(map['updated_at']))
+      updatedAt: map['updated_at'] != null
+          ? (map['updated_at'] is String
+                ? DateTime.parse(map['updated_at'])
+                : DateTime.fromMillisecondsSinceEpoch(map['updated_at']))
           : null,
-      surahNumber: source == DictionarySource.ghoribulquran ? parseInt(map['id_surah']) : null,
-      ayahNumber: source == DictionarySource.ghoribulquran ? parseInt(map['id_ayah']) : null,
+      surahNumber: source == DictionarySource.ghoribulquran
+          ? parseInt(map['id_surah'])
+          : null,
+      ayahNumber: source == DictionarySource.ghoribulquran
+          ? parseInt(map['id_ayah'])
+          : null,
     );
   }
 

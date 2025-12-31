@@ -41,21 +41,12 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen>
     );
 
     // Logo scale animation (subtle scale up, Airbnb style)
-    _logoScaleAnimation = Tween<double>(
-      begin: 0.7,
-      end: 1.0,
-    ).animate(
-      CurvedAnimation(
-        parent: _logoController,
-        curve: Curves.easeOutCubic,
-      ),
+    _logoScaleAnimation = Tween<double>(begin: 0.7, end: 1.0).animate(
+      CurvedAnimation(parent: _logoController, curve: Curves.easeOutCubic),
     );
 
     // Logo fade in animation
-    _logoFadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(
+    _logoFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _logoController,
         curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
@@ -63,14 +54,8 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen>
     );
 
     // Splash screen fade out animation
-    _splashFadeAnimation = Tween<double>(
-      begin: 1.0,
-      end: 0.0,
-    ).animate(
-      CurvedAnimation(
-        parent: _fadeController,
-        curve: Curves.easeInOut,
-      ),
+    _splashFadeAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut),
     );
 
     // Start animations sequence

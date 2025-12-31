@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
@@ -12,6 +13,7 @@ class DatabaseService {
   static Database? _database;
   static const String _dbName = 'haramcopy4.db';
   static bool _ftsAvailable = true;
+  static final Random _random = Random();
 
   static const int _kDatabaseVersion = 2; // Increment this to trigger update
 
@@ -50,7 +52,10 @@ class DatabaseService {
     try {
       final db = await openDatabase(
         path,
-        version: 1,
+        version: _kDatabaseVersion,
+        onConfigure: (database) async {
+          await database.execute('PRAGMA foreign_keys = ON');
+        },
         onOpen: (database) async {
           await _ensureMetaTable(database);
           await _ensureSearchIndexes(database);
@@ -79,6 +84,7 @@ class DatabaseService {
 
         // 1. Open existing DB to backup user data
         final db = await openDatabase(path);
+        await db.execute('PRAGMA foreign_keys = ON');
         final userData = await _backupUserData(db);
         await db.close();
 
@@ -87,6 +93,7 @@ class DatabaseService {
 
         // 3. Re-open and restore user data
         final newDb = await openDatabase(path);
+        await newDb.execute('PRAGMA foreign_keys = ON');
         // Ensure tables exist in new DB (just in case)
         await _ensureUserTables(newDb);
         await _restoreUserData(newDb, userData);
@@ -97,6 +104,12 @@ class DatabaseService {
       }
     } catch (e) {
       debugPrint('❌ Database update failed: $e');
+      // Store update failure for UI to show
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('db_update_failed', true);
+        await prefs.setString('db_update_error', e.toString());
+      } catch (_) {}
       // Fallback: Do nothing, keep using old DB to avoid data loss
     }
   }
@@ -159,21 +172,33 @@ class DatabaseService {
       // Restore Favorites
       if (data.containsKey('favorites')) {
         for (final row in data['favorites']!) {
-          await txn.insert('favorites', row);
+          await txn.insert(
+            'favorites',
+            row,
+            conflictAlgorithm: ConflictAlgorithm.ignore,
+          );
         }
       }
 
       // Restore Collections (preserve IDs)
       if (data.containsKey('collections')) {
         for (final row in data['collections']!) {
-          await txn.insert('collections', row);
+          await txn.insert(
+            'collections',
+            row,
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
         }
       }
 
       // Restore Collection Items
       if (data.containsKey('collection_items')) {
         for (final row in data['collection_items']!) {
-          await txn.insert('collection_items', row);
+          await txn.insert(
+            'collection_items',
+            row,
+            conflictAlgorithm: ConflictAlgorithm.ignore,
+          );
         }
       }
 
@@ -296,10 +321,33 @@ class DatabaseService {
   Future<void> _ensureFtsIndex(Database db) async {
     if (!_ftsAvailable) return;
     try {
+      final tableExists = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='entries_fts' LIMIT 1",
+      );
       final built = await db.rawQuery(
         "SELECT value FROM app_meta WHERE key='fts_index_built' LIMIT 1",
       );
-      if (built.isNotEmpty && built.first['value'] == '1') return;
+      final isBuilt = built.isNotEmpty && built.first['value'] == '1';
+
+      if (tableExists.isNotEmpty) {
+        if (isBuilt) return;
+        final count = Sqflite.firstIntValue(
+          await db.rawQuery('SELECT COUNT(*) FROM entries_fts'),
+        );
+        if ((count ?? 0) > 0) {
+          await db.insert('app_meta', {
+            'key': 'fts_index_built',
+            'value': '1',
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+          return;
+        }
+      } else if (isBuilt) {
+        await db.delete(
+          'app_meta',
+          where: 'key = ?',
+          whereArgs: ['fts_index_built'],
+        );
+      }
 
       await db.execute(
         "CREATE VIRTUAL TABLE IF NOT EXISTS entries_fts USING fts5(headword_raw, headword_norm, meaning, source, tokenize='unicode61 remove_diacritics 2')",
@@ -397,6 +445,62 @@ class DatabaseService {
     return out;
   }
 
+  Future<Map<String, dynamic>?> _getRandomRow(
+    Database db,
+    String tableName,
+  ) async {
+    final maxRowId = Sqflite.firstIntValue(
+      await db.rawQuery('SELECT MAX(rowid) FROM $tableName'),
+    );
+    if (maxRowId == null || maxRowId <= 0) return null;
+    final seed = _random.nextInt(maxRowId) + 1;
+    final maps = await db.rawQuery(
+      'SELECT rowid AS _rid, * FROM $tableName WHERE rowid >= ? LIMIT 1',
+      [seed],
+    );
+    if (maps.isNotEmpty) return maps.first;
+    final fallback = await db.rawQuery(
+      'SELECT rowid AS _rid, * FROM $tableName LIMIT 1',
+    );
+    return fallback.isNotEmpty ? fallback.first : null;
+  }
+
+  Future<List<Map<String, dynamic>>> _getRandomRows(
+    Database db,
+    String tableName,
+    int limit,
+  ) async {
+    if (limit <= 0) return [];
+    final maxRowId = Sqflite.firstIntValue(
+      await db.rawQuery('SELECT MAX(rowid) FROM $tableName'),
+    );
+    if (maxRowId == null || maxRowId <= 0) return [];
+    final used = <int>{};
+    final results = <Map<String, dynamic>>[];
+    int attempts = 0;
+    final maxAttempts = limit * 6;
+
+    while (results.length < limit && attempts < maxAttempts) {
+      attempts++;
+      final seed = _random.nextInt(maxRowId) + 1;
+      final maps = await db.rawQuery(
+        'SELECT rowid AS _rid, * FROM $tableName WHERE rowid >= ? LIMIT 1',
+        [seed],
+      );
+      if (maps.isEmpty) continue;
+      final row = maps.first;
+      final rid = row['_rid'];
+      if (rid is int && used.contains(rid)) continue;
+      if (rid is int) used.add(rid);
+      results.add(row);
+    }
+
+    if (results.isEmpty) {
+      return await db.rawQuery('SELECT * FROM $tableName LIMIT ?', [limit]);
+    }
+    return results;
+  }
+
   // Return all dictionary entries for a headword from all sources (aggregated view)
   Future<List<Word>> getAllEntries(
     String inputWord, {
@@ -443,9 +547,12 @@ class DatabaseService {
 
       for (final map in maps) {
         final w = Word.fromMap(map, source: s);
-        final key = '${s.tableName}|${w.word}';
-        if (!seen.contains(key)) {
-          seen.add(key);
+        final entryId =
+            map['id'] ?? map['arabic_id'] ?? map['ID'] ?? map['_rid'];
+        final key = entryId != null
+            ? '${s.tableName}|$entryId'
+            : '${s.tableName}|${w.word}|${w.meaning}';
+        if (seen.add(key)) {
           results.add(w);
         }
       }
@@ -543,53 +650,43 @@ class DatabaseService {
 
       for (final s in DictionarySource.searchableDictionaries) {
         final t = s.tableName;
-        // We need to select columns that match the structure we want
-        // We'll select: word, meaning, source_table_name, rank (custom scoring)
-
-        // Custom scoring logic in SQL is limited, so we'll do basic matching
-        // and sort in Dart.
-        // We select enough candidates from each to ensure good coverage.
 
         switch (s) {
           case DictionarySource.ghoni:
             queries.add('''
               SELECT arabic_word AS w, arabic_meanings AS m, '${s.tableName}' as s 
               FROM $t 
-              WHERE arabic_word LIKE ? OR arabic_noharokah LIKE ? 
-              LIMIT ?
+              WHERE arabic_word LIKE ? OR arabic_noharokah LIKE ?
             ''');
-            args.addAll(['$query%', '$qn%', 5]); // Limit per source
+            args.addAll(['$query%', '$qn%']);
             break;
           case DictionarySource.lisanularab:
             queries.add('''
               SELECT arabic_noharokah AS w, arabic_meanings AS m, '${s.tableName}' as s 
               FROM $t 
-              WHERE arabic_noharokah LIKE ? 
-              LIMIT ?
+              WHERE arabic_noharokah LIKE ?
             ''');
-            args.addAll(['$qn%', 5]);
+            args.add('$qn%');
             break;
           case DictionarySource.ghoribulquran:
             queries.add('''
               SELECT arabic_noharokah AS w, meaning AS m, '${s.tableName}' as s 
               FROM $t 
-              WHERE arabic_noharokah LIKE ? OR ayah LIKE ? 
-              LIMIT ?
+              WHERE arabic_noharokah LIKE ? OR ayah LIKE ?
             ''');
-            args.addAll(['$qn%', '$query%', 5]);
+            args.addAll(['$qn%', '$query%']);
             break;
           default:
             queries.add('''
               SELECT word AS w, meaning AS m, '${s.tableName}' as s 
               FROM $t 
-              WHERE word LIKE ? 
-              LIMIT ?
+              WHERE word LIKE ?
             ''');
-            args.addAll(['$query%', 5]);
+            args.add('$query%');
         }
       }
 
-      final fullQuery = queries.join(' UNION ALL ');
+      final fullQuery = '${queries.join(' UNION ALL ')} LIMIT $limit';
       final maps = await db.rawQuery(fullQuery, args);
 
       for (final map in maps) {
@@ -775,23 +872,22 @@ class DatabaseService {
 
   // --- User Data Methods ---
 
-  Future<List<Word>> getSearchHistory({int limit = 10}) async {
+  Future<List<Word>> getSearchHistory({int limit = 10, int offset = 0}) async {
     final db = await database;
     final maps = await db.query(
       'search_history',
       orderBy: 'timestamp DESC',
       limit: limit,
+      offset: offset,
     );
 
     List<Word> historyWords = [];
     for (var m in maps) {
       String query = m['query'] as String;
-      // Try to find the word to get its meaning
       Word? wordDetails = await getWord(query);
       if (wordDetails != null) {
         historyWords.add(wordDetails);
       } else {
-        // If not found, return basic info
         historyWords.add(
           Word(word: query, meaning: 'Tap to search', source: null),
         );
@@ -918,12 +1014,10 @@ class DatabaseService {
           sources[DateTime.now().millisecondsSinceEpoch % sources.length];
       final tableName = randomSource.tableName;
 
-      final maps = await db.rawQuery(
-        'SELECT * FROM $tableName ORDER BY RANDOM() LIMIT 1',
-      );
+      final row = await _getRandomRow(db, tableName);
 
-      if (maps.isNotEmpty) {
-        final word = Word.fromMap(maps.first, source: randomSource);
+      if (row != null) {
+        final word = Word.fromMap(row, source: randomSource);
 
         // Store in meta
         await db.insert('app_meta', {
@@ -957,10 +1051,7 @@ class DatabaseService {
     final tableName = source?.tableName ?? DictionarySource.muashiroh.tableName;
 
     try {
-      final maps = await db.rawQuery(
-        'SELECT * FROM $tableName ORDER BY RANDOM() LIMIT ?',
-        [limit],
-      );
+      final maps = await _getRandomRows(db, tableName, limit);
 
       return maps
           .map(

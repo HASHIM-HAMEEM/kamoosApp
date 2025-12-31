@@ -51,6 +51,16 @@ class AppLocalizations {
       'desc_muhith': 'Comprehensive Dictionary',
       'desc_shihah': 'The Correct Language',
       'desc_ghoni': 'Rich Vocabulary',
+      'ai_source': 'AI Generated',
+      'no_collections_found': 'No collections found',
+      'delete_collection': 'Delete Collection',
+      'delete_collection_confirm':
+          'Are you sure you want to delete this collection?',
+      'added_to_collection': 'Added to',
+      'no_words_collection': 'No words in this collection yet',
+      'developer': 'Developer',
+      'developer_name': 'Hashim Hameem',
+      'visit_website': 'Visit Website',
     },
     'ur': {
       'app_title': 'قاموس',
@@ -97,6 +107,15 @@ class AppLocalizations {
       'desc_muhith': 'جامع لغت',
       'desc_shihah': 'صحیح زبان',
       'desc_ghoni': 'امیر ذخیرہ الفاظ',
+      'ai_source': 'AI تولید شدہ',
+      'no_collections_found': 'کوئی مجموعہ نہیں ملا',
+      'delete_collection': 'مجموعہ حذف کریں',
+      'delete_collection_confirm': 'کیا آپ واقعی یہ مجموعہ حذف کرنا چاہتے ہیں؟',
+      'added_to_collection': 'میں شامل ہو گیا',
+      'no_words_collection': 'ابھی اس مجموعے میں کوئی لفظ نہیں ہے',
+      'developer': 'ڈویلپر',
+      'developer_name': 'ہاشم حمیم',
+      'visit_website': 'ویب سائٹ دیکھیں',
     },
     'ar': {
       'app_title': 'القاموس',
@@ -143,11 +162,22 @@ class AppLocalizations {
       'desc_muhith': 'المعجم المحيط',
       'desc_shihah': 'الصحاح',
       'desc_ghoni': 'المغني',
+      'ai_source': 'مولد بالذكاء الاصطناعي',
+      'no_collections_found': 'لا توجد مجموعات',
+      'delete_collection': 'حذف المجموعة',
+      'delete_collection_confirm': 'هل أنت متأكد من حذف هذه المجموعة؟',
+      'added_to_collection': 'تمت الإضافة إلى',
+      'no_words_collection': 'لا توجد كلمات في هذه المجموعة بعد',
+      'developer': 'المطور',
+      'developer_name': 'هاشم حميم',
+      'visit_website': 'زيارة الموقع',
     },
   };
 
   String get(String key) {
-    return _localizedValues[locale.languageCode]?[key] ?? _localizedValues['en']![key] ?? key;
+    return _localizedValues[locale.languageCode]?[key] ??
+        _localizedValues['en']![key] ??
+        key;
   }
 
   static AppLocalizations of(BuildContext context) {

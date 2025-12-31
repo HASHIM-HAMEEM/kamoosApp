@@ -27,14 +27,18 @@ class _MyAppState extends State<MyApp> {
 
   void _toggleTheme() {
     setState(() {
-      _themeMode = _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+      _themeMode = _themeMode == ThemeMode.dark
+          ? ThemeMode.light
+          : ThemeMode.dark;
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final geminiKey = dotenv.env['GEMINI_API_KEY'];
-    debugPrint('🔑 Gemini API Key loaded: ${geminiKey != null && geminiKey.isNotEmpty ? "YES (${geminiKey.substring(0, 10)}...)" : "NO"}');
+    debugPrint(
+      '🔑 Gemini API Key loaded: ${geminiKey != null && geminiKey.isNotEmpty ? "YES (${geminiKey.substring(0, 10)}...)" : "NO"}',
+    );
 
     return MultiProvider(
       providers: [
@@ -43,7 +47,9 @@ class _MyAppState extends State<MyApp> {
           dispose: (_, dbService) => dbService.close(),
         ),
         ChangeNotifierProxyProvider<DatabaseService, SettingsService>(
-          create: (context) => SettingsService(Provider.of<DatabaseService>(context, listen: false)),
+          create: (context) => SettingsService(
+            Provider.of<DatabaseService>(context, listen: false),
+          ),
           update: (context, db, previous) => previous ?? SettingsService(db),
         ),
         Provider<ApiService?>(
@@ -75,11 +81,7 @@ class _MyAppState extends State<MyApp> {
             darkTheme: AppTheme.dark,
             themeMode: _themeMode,
             locale: settings.locale,
-            supportedLocales: const [
-              Locale('en'),
-              Locale('ur'),
-              Locale('ar'),
-            ],
+            supportedLocales: const [Locale('en'), Locale('ur'), Locale('ar')],
             localizationsDelegates: [
               GlobalMaterialLocalizations.delegate,
               GlobalWidgetsLocalizations.delegate,

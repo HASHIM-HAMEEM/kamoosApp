@@ -347,10 +347,8 @@ class _LibraryScreenState extends State<LibraryScreen>
                   context,
                   listen: false,
                 ).createCollection(controller.text.trim());
-                if (mounted) {
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                  }
+                if (mounted && context.mounted) {
+                  Navigator.pop(context);
                   setState(() {}); // Refresh
                 }
               }

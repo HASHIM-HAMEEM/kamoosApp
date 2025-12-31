@@ -10,7 +10,9 @@ class AppTokens {
   static const Color lightTextMuted = Color(0xFF9B9B9B);
   static const Color lightBorder = Color(0xFFE5E5E5);
   static const Color lightAccent = Color(0xFF20808D); // Teal
-  static const Color lightAccentLight = Color(0x1A20808D); // rgba(32, 128, 141, 0.1)
+  static const Color lightAccentLight = Color(
+    0x1A20808D,
+  ); // rgba(32, 128, 141, 0.1)
   static const Color lightCardBg = Color(0xFFFFFFFF);
   static const Color lightInputBg = Color(0xFFF7F7F8);
 
@@ -23,7 +25,9 @@ class AppTokens {
   static const Color darkTextMuted = Color(0xFF6B6B6B);
   static const Color darkBorder = Color(0xFF333535);
   static const Color darkAccent = Color(0xFF20B8CB); // Bright Teal
-  static const Color darkAccentLight = Color(0x2620B8CB); // rgba(32, 184, 203, 0.15)
+  static const Color darkAccentLight = Color(
+    0x2620B8CB,
+  ); // rgba(32, 184, 203, 0.15)
   static const Color darkCardBg = Color(0xFF232627);
   static const Color darkInputBg = Color(0xFF232627);
 
