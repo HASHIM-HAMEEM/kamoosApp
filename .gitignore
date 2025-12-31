@@ -16,6 +16,9 @@ migrate_working_dir/
 .env
 .env.*
 
+# Database files (too large for GitHub)
+assets/database/*.db
+
 # IntelliJ related
 *.iml
 *.ipr
