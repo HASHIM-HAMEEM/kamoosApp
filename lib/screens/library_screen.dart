@@ -78,28 +78,48 @@ class _LibraryScreenState extends State<LibraryScreen>
               margin: const EdgeInsets.symmetric(
                 horizontal: AppTokens.spacing20,
               ),
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: colors.bgSecondary,
-                borderRadius: BorderRadius.circular(AppTokens.radius12),
-              ),
-              child: TabBar(
-                controller: _tabController,
-                indicator: BoxDecoration(
-                  color: colors.cardBg,
-                  borderRadius: BorderRadius.circular(AppTokens.radius10),
-                ),
-                dividerColor: Colors.transparent,
-                labelColor: colors.text,
-                unselectedLabelColor: colors.textSecondary,
-                labelStyle: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-                tabs: [
-                  Tab(text: strings.get('history')),
-                  Tab(text: strings.get('favorites')),
-                  Tab(text: strings.get('collections')),
+              child: Column(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: colors.border.withValues(alpha: 0.5),
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                    child: TabBar(
+                      controller: _tabController,
+                      indicator: UnderlineTabIndicator(
+                        borderSide: BorderSide(
+                          color: colors.accent,
+                          width: 3,
+                        ),
+                        insets: const EdgeInsets.symmetric(horizontal: 24),
+                      ),
+                      indicatorSize: TabBarIndicatorSize.label,
+                      dividerColor: Colors.transparent,
+                      labelColor: colors.accent,
+                      unselectedLabelColor: colors.textSecondary,
+                      labelStyle: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3,
+                      ),
+                      unselectedLabelStyle: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: -0.3,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      tabs: [
+                        Tab(text: strings.get('history')),
+                        Tab(text: strings.get('favorites')),
+                        Tab(text: strings.get('collections')),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
