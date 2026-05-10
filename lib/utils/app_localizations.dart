@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 
+/// Lightweight string catalogue.
+///
+/// We access this through `SettingsService.strings` (which owns the locale)
+/// rather than a LocalizationsDelegate, because the settings layer needs to
+/// drive rebuilds via [ChangeNotifier] already.
 class AppLocalizations {
   final Locale locale;
 
-  AppLocalizations(this.locale);
+  const AppLocalizations(this.locale);
 
-  static final Map<String, Map<String, String>> _localizedValues = {
+  static const Map<String, Map<String, String>> _localizedValues = {
     'en': {
       'app_title': 'Qamus',
       'search_hint': 'Search any Arabic word...',
@@ -13,6 +18,14 @@ class AppLocalizations {
       'or_any_word': ' or any word',
       'recent_searches': 'RECENT SEARCHES',
       'word_of_the_day': 'WORD OF THE DAY',
+      'tagline_primary': 'Where Arabic Begins',
+      'tagline_arabic': 'حيث تبدأ العربية',
+      'clear_all': 'Clear all',
+      'no_history': 'No recent searches yet',
+      'no_favorites': 'No favorites yet',
+      'select_language': 'Select Language',
+      'results': 'Results',
+      'preferences': 'Preferences',
       'settings': 'Settings',
       'appearance': 'Appearance',
       'dark_mode': 'Dark mode',
@@ -61,6 +74,7 @@ class AppLocalizations {
       'developer': 'Developer',
       'developer_name': 'Hashim Hameem',
       'visit_website': 'Visit Website',
+      'no_results': 'No results found',
     },
     'ur': {
       'app_title': 'قاموس',
@@ -69,6 +83,14 @@ class AppLocalizations {
       'or_any_word': ' یا کوئی بھی لفظ',
       'recent_searches': 'حالیہ تلاش',
       'word_of_the_day': 'آج کا لفظ',
+      'tagline_primary': 'جہاں عربی شروع ہوتی ہے',
+      'tagline_arabic': 'حيث تبدأ العربية',
+      'clear_all': 'سب صاف کریں',
+      'no_history': 'ابھی کوئی حالیہ تلاش نہیں',
+      'no_favorites': 'ابھی کوئی پسندیدہ نہیں',
+      'select_language': 'زبان منتخب کریں',
+      'results': 'نتائج',
+      'preferences': 'ترجیحات',
       'settings': 'ترتیبات',
       'appearance': 'ظاہری شکل',
       'dark_mode': 'ڈارک موڈ',
@@ -116,6 +138,7 @@ class AppLocalizations {
       'developer': 'ڈویلپر',
       'developer_name': 'ہاشم حمیم',
       'visit_website': 'ویب سائٹ دیکھیں',
+      'no_results': 'کوئی نتیجہ نہیں ملا',
     },
     'ar': {
       'app_title': 'القاموس',
@@ -124,6 +147,14 @@ class AppLocalizations {
       'or_any_word': ' أو أي كلمة',
       'recent_searches': 'عمليات البحث الأخيرة',
       'word_of_the_day': 'كلمة اليوم',
+      'tagline_primary': 'حيث تبدأ العربية',
+      'tagline_arabic': 'حيث تبدأ العربية',
+      'clear_all': 'مسح الكل',
+      'no_history': 'لا توجد عمليات بحث حديثة',
+      'no_favorites': 'لا توجد عناصر مفضلة بعد',
+      'select_language': 'اختر اللغة',
+      'results': 'النتائج',
+      'preferences': 'التفضيلات',
       'settings': 'الإعدادات',
       'appearance': 'المظهر',
       'dark_mode': 'الوضع الداكن',
@@ -171,6 +202,7 @@ class AppLocalizations {
       'developer': 'المطور',
       'developer_name': 'هاشم حميم',
       'visit_website': 'زيارة الموقع',
+      'no_results': 'لا توجد نتائج',
     },
   };
 
@@ -178,14 +210,5 @@ class AppLocalizations {
     return _localizedValues[locale.languageCode]?[key] ??
         _localizedValues['en']![key] ??
         key;
-  }
-
-  static AppLocalizations of(BuildContext context) {
-    // Simple implementation without LocalizationsDelegate for now
-    // In a real app, we'd use Localizations.of<AppLocalizations>(context, AppLocalizations)
-    // But since we are managing state manually in SettingsService, we can just access it from there
-    // or pass the locale down.
-    // For this architecture, we'll rely on the provider to rebuild widgets with the correct text.
-    throw UnimplementedError('Use SettingsService to get current locale');
   }
 }

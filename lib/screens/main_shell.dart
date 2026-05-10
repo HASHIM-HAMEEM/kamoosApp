@@ -11,9 +11,7 @@ import '../services/settings_service.dart';
 import '../utils/app_localizations.dart';
 
 class MainShell extends StatefulWidget {
-  final VoidCallback onToggleTheme;
-
-  const MainShell({super.key, required this.onToggleTheme});
+  const MainShell({super.key});
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -22,8 +20,6 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> with TickerProviderStateMixin {
   int _currentIndex = 0;
   late AnimationController _glowController;
-  late AnimationController _shimmerController;
-  late AnimationController _floatController;
 
   void _showSettingsSheet() {
     showModalBottomSheet(
@@ -45,23 +41,11 @@ class _MainShellState extends State<MainShell> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 2000),
       vsync: this,
     )..repeat(reverse: true);
-
-    _shimmerController = AnimationController(
-      duration: const Duration(milliseconds: 2500),
-      vsync: this,
-    )..repeat();
-
-    _floatController = AnimationController(
-      duration: const Duration(milliseconds: 3000),
-      vsync: this,
-    )..repeat(reverse: true);
   }
 
   @override
   void dispose() {
     _glowController.dispose();
-    _shimmerController.dispose();
-    _floatController.dispose();
     super.dispose();
   }
 
@@ -282,7 +266,7 @@ class _MainShellState extends State<MainShell> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionLabel(colors, 'Preferences'),
+          _buildSectionLabel(colors, strings.get('preferences')),
           const SizedBox(height: 12),
           _buildSettingsCard(
             colors,
@@ -295,7 +279,11 @@ class _MainShellState extends State<MainShell> with TickerProviderStateMixin {
                 description: isDark
                     ? strings.get('dark_mode')
                     : strings.get('light_mode'),
-                trailing: _buildPremiumToggle(colors, isDark, widget.onToggleTheme),
+                trailing: _buildPremiumToggle(
+                  colors,
+                  isDark,
+                  () => context.read<SettingsService>().toggleTheme(),
+                ),
               ),
               _buildDivider(colors),
               _buildPremiumSettingItem(
@@ -585,7 +573,7 @@ class _MainShellState extends State<MainShell> with TickerProviderStateMixin {
               ),
             ),
             Text(
-              'Select Language',
+              settings.strings.get('select_language'),
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w700,
