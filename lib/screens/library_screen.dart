@@ -150,10 +150,10 @@ class _LibraryScreenState extends State<LibraryScreen>
   Widget _buildHistoryTab(AppColors colors, AppLocalizations strings) {
     if (_historyWords.isEmpty) {
       return _buildEmptyState(
-        strings.get('no_collections'),
+        strings.get('no_history'),
         Icons.history,
         colors,
-      ); // Using generic empty message or specific if available
+      );
     }
 
     return ListView.builder(
@@ -169,10 +169,10 @@ class _LibraryScreenState extends State<LibraryScreen>
   Widget _buildFavoritesTab(AppColors colors, AppLocalizations strings) {
     if (_favoriteWords.isEmpty) {
       return _buildEmptyState(
-        strings.get('no_collections'),
+        strings.get('no_favorites'),
         Icons.favorite_border,
         colors,
-      ); // Reuse empty message for now or add specific
+      );
     }
 
     return ListView.builder(

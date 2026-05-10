@@ -123,11 +123,13 @@ class _ResultScreenState extends State<ResultScreen> {
           icon: Icon(Icons.arrow_back, color: colors.textSecondary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          'Results',
-          style: TextStyle(color: colors.text, fontSize: 18),
+        title: Consumer<SettingsService>(
+          builder: (context, settings, _) => Text(
+            settings.strings.get('results'),
+            style: TextStyle(color: colors.text, fontSize: 18),
+          ),
         ),
-        centerTitle: true,
+        centerTitle: false,
       ),
       body: _buildBody(colors),
     );
@@ -139,6 +141,7 @@ class _ResultScreenState extends State<ResultScreen> {
     }
 
     if (_errorMessage != null) {
+      final settings = Provider.of<SettingsService>(context, listen: false);
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -146,7 +149,7 @@ class _ResultScreenState extends State<ResultScreen> {
             Icon(Icons.search_off, size: 64, color: colors.textMuted),
             const SizedBox(height: 16),
             Text(
-              _errorMessage!,
+              settings.strings.get('no_results'),
               style: TextStyle(color: colors.textSecondary, fontSize: 16),
             ),
           ],
@@ -162,14 +165,18 @@ class _ResultScreenState extends State<ResultScreen> {
           // Main Word Header
           Consumer<SettingsService>(
             builder: (context, settings, _) {
-              return Center(
-                child: Text(
-                  settings.formatText(widget.wordText),
-                  style: AppTheme.arabicTextStyle(
-                    context,
-                    fontSize: 48,
-                    fontWeight: FontWeight.w600,
-                    color: colors.text,
+              return Align(
+                alignment: Alignment.centerRight,
+                child: Directionality(
+                  textDirection: TextDirection.rtl,
+                  child: Text(
+                    settings.formatText(widget.wordText),
+                    style: AppTheme.arabicTextStyle(
+                      context,
+                      fontSize: 44,
+                      fontWeight: FontWeight.w600,
+                      color: colors.text,
+                    ),
                   ),
                 ),
               );

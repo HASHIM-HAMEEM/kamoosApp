@@ -138,10 +138,13 @@ class _DictionaryCardState extends State<DictionaryCard> {
                       Icons.copy,
                       colors,
                       onTap: () {
+                        final cleanMeaning = widget.word.meaning
+                            .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+                            .replaceAll(RegExp(r'<[^>]*>'), '')
+                            .trim();
                         Clipboard.setData(
                           ClipboardData(
-                            text:
-                                '${widget.word.word}\n\n${widget.word.meaning}',
+                            text: '${widget.word.word}\n\n$cleanMeaning',
                           ),
                         );
                         if (mounted) {
@@ -168,25 +171,8 @@ class _DictionaryCardState extends State<DictionaryCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Word (with diacritics logic applied if needed, though usually meaning is what matters,
-                // but if we were displaying the headword prominently we'd use displayWord.
-                // Here the headword isn't explicitly shown in the card body, only in the result screen header usually.
-                // But wait, DictionaryCard is used in ResultScreen which shows the word at the top.
-                // DictionaryCard shows the MEANING.
-                // If the meaning contains Arabic text, we might want to strip diacritics there too?
-                // The user said "show diacticatics should work". Usually this applies to the headword.
-                // Let's check if DictionaryCard displays the headword. It doesn't seem to display the headword in the body, only meaning.
-                // However, ResultScreen displays the headword. I should check ResultScreen too.
-                // But wait, DictionaryCard is a list item.
-                // Let's assume the user wants the meaning text to be affected if it's Arabic?
-                // Or maybe they mean the headword in the result screen?
-                // I'll apply it to the meaning text if it looks like Arabic?
-                // Actually, meanings are usually mixed.
-                // Let's just apply it to the headword if it was shown.
-                // But wait, the previous code didn't show headword in card.
-                // Let's check ResultScreen.
-
-                // English Meaning
+                // Arabic Meaning
+                Directionality(
                 if (widget.word.meaningEn != null &&
                     widget.word.meaningEn!.isNotEmpty) ...[
                   Align(
