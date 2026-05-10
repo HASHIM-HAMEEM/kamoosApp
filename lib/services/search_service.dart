@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 import 'package:flutter/foundation.dart';
 import '../utils/ranking.dart';
@@ -5,6 +6,16 @@ import 'api_service.dart';
 import '../models/word.dart';
 import '../models/dictionary_source.dart';
 import 'database_service.dart';
+
+/// Result of a single-word lookup. Lets callers (ResultScreen) tell an
+/// "empty dictionary + empty AI answer" apart from "AI request failed"
+/// so we can surface the second case with an offline/network banner.
+class SearchOutcome {
+  final Word? word;
+  final bool fromAi;
+  final bool aiFailed;
+  const SearchOutcome({this.word, this.fromAi = false, this.aiFailed = false});
+}
 
 // Ranking moved to: lib/utils/ranking.dart
 
@@ -27,6 +38,17 @@ class SearchService {
   // AI to be called for words that were already in the local dictionary,
   // wasting API quota and overriding authoritative lexicon entries.
   Future<Word?> searchWord(String word, {DictionarySource? source}) async {
+    final outcome = await searchWordDetailed(word, source: source);
+    return outcome.word;
+  }
+
+  /// Same as [searchWord] but exposes whether the answer came from the
+  /// AI and whether the AI request itself failed (used to show an
+  /// offline/network banner in the UI).
+  Future<SearchOutcome> searchWordDetailed(
+    String word, {
+    DictionarySource? source,
+  }) async {
     final trimmed = word.trim();
     debugPrint(
       '🔎 Searching for word: "$trimmed" (source: ${source?.arabicName ?? "all"})',
@@ -37,26 +59,49 @@ class SearchService {
       debugPrint(
         '✅ Found in database: ${dbHit.source?.arabicName ?? "unknown source"}',
       );
-      return dbHit;
+      return SearchOutcome(word: dbHit);
     }
 
-    if (apiService != null) {
-      final cached = _aiCache[trimmed];
-      if (cached != null) {
-        debugPrint('🗂️  Using cached AI result');
-        return cached;
-      }
-      debugPrint('🤖 DB miss, asking Gemini for: "$trimmed"');
+    if (apiService == null) {
+      debugPrint('⚠️  ApiService is null - cannot call Gemini');
+      return const SearchOutcome();
+    }
+
+    // 1. In-memory cache (current process).
+    final cached = _aiCache[trimmed];
+    if (cached != null) {
+      debugPrint('🗂️  Using in-memory AI result');
+      return SearchOutcome(word: cached, fromAi: true);
+    }
+
+    // 2. Persisted cache (survives restarts, saves API quota).
+    final persisted = await databaseService.getCachedAiWord(trimmed);
+    if (persisted != null) {
+      debugPrint('💾 Using persisted AI result');
+      _aiCache[trimmed] = persisted;
+      return SearchOutcome(word: persisted, fromAi: true);
+    }
+
+    debugPrint('🤖 DB + cache miss, asking Gemini for: "$trimmed"');
+    try {
       final ai = await apiService!.getWordMeaning(trimmed);
       if (ai != null) {
         _aiCache[trimmed] = ai;
-        return ai;
+        // Fire-and-forget persistence — a failure here (disk full,
+        // schema quirk) should not cost the user the result they
+        // already have in memory.
+        unawaited(databaseService.cacheAiWord(trimmed, ai));
+        return SearchOutcome(word: ai, fromAi: true);
       }
-    } else {
-      debugPrint('⚠️  ApiService is null - cannot call Gemini');
+      // Null without throwing: API returned nothing usable (empty
+      // candidates, schema mismatch). Treat that as a soft failure so
+      // the UI can nudge the user to retry rather than silently show
+      // "no results".
+      return const SearchOutcome(aiFailed: true);
+    } catch (e) {
+      debugPrint('❌ Gemini request failed: $e');
+      return const SearchOutcome(aiFailed: true);
     }
-
-    return null;
   }
 
   // Get search suggestions from database

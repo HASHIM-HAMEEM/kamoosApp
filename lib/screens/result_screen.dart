@@ -5,7 +5,6 @@ import '../ui/theme/tokens.dart';
 import '../models/word.dart';
 import '../models/dictionary_source.dart';
 import '../services/search_service.dart';
-import '../services/api_service.dart';
 import '../widgets/dictionary_card.dart';
 import '../services/settings_service.dart';
 
@@ -28,7 +27,8 @@ class ResultScreen extends StatefulWidget {
 class _ResultScreenState extends State<ResultScreen> {
   List<Word> _results = [];
   bool _isLoading = true;
-  String? _errorMessage;
+  bool _noLocalMatch = false;
+  bool _aiFailed = false;
 
   @override
   void initState() {
@@ -39,31 +39,29 @@ class _ResultScreenState extends State<ResultScreen> {
   Future<void> _loadData() async {
     setState(() {
       _isLoading = true;
-      _errorMessage = null;
+      _aiFailed = false;
+      _noLocalMatch = false;
     });
 
     final searchService = Provider.of<SearchService>(context, listen: false);
-    final apiService = Provider.of<ApiService?>(context, listen: false);
 
+    // 1. Pull every local dictionary entry in parallel with kicking off the
+    // AI lookup (which itself hits an in-memory -> persisted -> network
+    // ladder inside SearchService).
     final dbFuture = searchService.getDictionaryEntries(
       widget.wordText,
       source: widget.filterSource,
     );
+    final aiFuture = searchService.searchWordDetailed(widget.wordText);
 
-    final Future<Word?>? aiFuture =
-        apiService?.getWordMeaning(widget.wordText);
-
-    List<Word> localResults = [];
-    String? loadError;
-    try {
-      localResults = await dbFuture;
-    } catch (e) {
-      loadError = 'Error: $e';
-    }
+    final localResults = await dbFuture.catchError((e) {
+      debugPrint('Local lookup failed: $e');
+      return <Word>[];
+    });
 
     if (!mounted) return;
 
-    final combinedResults = <Word>[];
+    final combined = <Word>[];
     if (widget.initialWord != null) {
       final initial = widget.initialWord!;
       final exists = localResults.any(
@@ -72,41 +70,40 @@ class _ResultScreenState extends State<ResultScreen> {
             w.meaning == initial.meaning &&
             w.source == initial.source,
       );
-      if (!exists) {
-        combinedResults.add(initial);
-      }
+      if (!exists) combined.add(initial);
     }
-    combinedResults.addAll(localResults);
+    combined.addAll(localResults);
 
     setState(() {
-      if (combinedResults.isNotEmpty) {
-        _results = combinedResults;
-        _errorMessage = null;
-      } else {
-        _errorMessage = loadError ?? 'No results found';
-      }
+      _results = combined;
+      _noLocalMatch = combined.isEmpty;
       _isLoading = false;
     });
 
-    if (aiFuture != null) {
-      try {
-        final aiResult = await aiFuture;
-        if (!mounted || aiResult == null) return;
-        final alreadyShown = _results.any(
-          (w) =>
-              w.word == aiResult.word &&
-              w.meaning == aiResult.meaning &&
-              w.source == aiResult.source,
-        );
-        if (!alreadyShown) {
-          setState(() {
-            _results = [aiResult, ..._results];
-            _errorMessage = null;
-          });
-        }
-      } catch (e) {
-        debugPrint('AI fetch failed: $e');
+    // 2. Await the AI leg and splice its answer in (or show the offline
+    // banner). Only surface "AI failed" when we also have no local rows —
+    // if the local lexicon already answered, a missing AI bonus is not
+    // worth interrupting the user with a banner.
+    final outcome = await aiFuture;
+    if (!mounted) return;
+
+    if (outcome.word != null) {
+      final ai = outcome.word!;
+      final alreadyShown = _results.any(
+        (w) =>
+            w.word == ai.word &&
+            w.meaning == ai.meaning &&
+            w.source == ai.source,
+      );
+      if (!alreadyShown) {
+        setState(() {
+          _results = [ai, ..._results];
+          _noLocalMatch = false;
+          _aiFailed = false;
+        });
       }
+    } else if (outcome.aiFailed && _results.isEmpty) {
+      setState(() => _aiFailed = true);
     }
   }
 
@@ -140,8 +137,9 @@ class _ResultScreenState extends State<ResultScreen> {
       return Center(child: CircularProgressIndicator(color: colors.accent));
     }
 
-    if (_errorMessage != null) {
-      final settings = Provider.of<SettingsService>(context, listen: false);
+    final settings = Provider.of<SettingsService>(context, listen: false);
+
+    if (_noLocalMatch && _results.isEmpty && !_aiFailed) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -157,43 +155,81 @@ class _ResultScreenState extends State<ResultScreen> {
       );
     }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppTokens.spacing20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Main Word Header
-          Consumer<SettingsService>(
-            builder: (context, settings, _) {
-              return Align(
-                alignment: Alignment.centerRight,
-                child: Directionality(
-                  textDirection: TextDirection.rtl,
-                  child: Text(
-                    settings.formatText(widget.wordText),
-                    style: AppTheme.arabicTextStyle(
-                      context,
-                      fontSize: 44,
-                      fontWeight: FontWeight.w600,
-                      color: colors.text,
-                    ),
-                  ),
+    return Column(
+      children: [
+        if (_aiFailed) _buildOfflineBanner(colors, settings),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(AppTokens.spacing20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Consumer<SettingsService>(
+                  builder: (context, settings, _) {
+                    return Align(
+                      alignment: Alignment.centerRight,
+                      child: Directionality(
+                        textDirection: TextDirection.rtl,
+                        child: Text(
+                          settings.formatText(widget.wordText),
+                          style: AppTheme.arabicTextStyle(
+                            context,
+                            fontSize: 44,
+                            fontWeight: FontWeight.w600,
+                            color: colors.text,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
+                const SizedBox(height: 24),
+                ..._results.map((word) {
+                  final isAi = word.source == null;
+                  return DictionaryCard(word: word, isAi: isAi);
+                }),
+                const SizedBox(height: 40),
+              ],
+            ),
           ),
-          const SizedBox(height: 24),
+        ),
+      ],
+    );
+  }
 
-          // Results List
-          ..._results.map((word) {
-            // Check if it's an AI result (source is null or special)
-            // Ideally we flag this better, but for now:
-            final isAi = word.source == null;
-            return DictionaryCard(word: word, isAi: isAi);
-          }),
-
-          // Bottom padding
-          const SizedBox(height: 40),
+  Widget _buildOfflineBanner(AppColors colors, SettingsService settings) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(
+        AppTokens.spacing20,
+        AppTokens.spacing20,
+        AppTokens.spacing20,
+        0,
+      ),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppTokens.radius12),
+        border: Border.all(color: colors.accent.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.cloud_off, size: 18, color: colors.accent),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              settings.strings.get('ai_offline_banner'),
+              style: TextStyle(fontSize: 13, color: colors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: _loadData,
+            style: TextButton.styleFrom(
+              foregroundColor: colors.accent,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
+            child: Text(settings.strings.get('retry')),
+          ),
         ],
       ),
     );

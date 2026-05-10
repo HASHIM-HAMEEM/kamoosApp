@@ -75,6 +75,10 @@ class AppLocalizations {
       'developer_name': 'Hashim Hameem',
       'visit_website': 'Visit Website',
       'no_results': 'No results found',
+      'ai_offline_banner': 'Couldn\'t reach the AI dictionary. Check your connection and retry.',
+      'retry': 'Retry',
+      'reading_size': 'Reading size',
+      'reading_size_desc': 'Scale definition text up or down',
     },
     'ur': {
       'app_title': 'قاموس',
@@ -139,6 +143,10 @@ class AppLocalizations {
       'developer_name': 'ہاشم حمیم',
       'visit_website': 'ویب سائٹ دیکھیں',
       'no_results': 'کوئی نتیجہ نہیں ملا',
+      'ai_offline_banner': 'AI ڈکشنری تک رسائی ممکن نہیں۔ اپنا کنکشن چیک کریں اور دوبارہ کوشش کریں۔',
+      'retry': 'دوبارہ کوشش کریں',
+      'reading_size': 'مطالعہ سائز',
+      'reading_size_desc': 'تعریف کے متن کو بڑا یا چھوٹا کریں',
     },
     'ar': {
       'app_title': 'القاموس',
@@ -203,6 +211,10 @@ class AppLocalizations {
       'developer_name': 'هاشم حميم',
       'visit_website': 'زيارة الموقع',
       'no_results': 'لا توجد نتائج',
+      'ai_offline_banner': 'تعذر الوصول إلى قاموس الذكاء الاصطناعي. تحقق من اتصالك وحاول مجدداً.',
+      'retry': 'إعادة المحاولة',
+      'reading_size': 'حجم القراءة',
+      'reading_size_desc': 'تكبير أو تصغير نص التعريفات',
     },
   };
 

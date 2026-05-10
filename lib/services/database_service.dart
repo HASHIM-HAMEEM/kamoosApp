@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
@@ -9,6 +10,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/word.dart';
 import '../models/dictionary_source.dart';
 import '../utils/ranking.dart' as ranking;
+import '../utils/text_clean.dart' as text_clean;
+import '../utils/wod_seed.dart' as wod_seed;
 
 class DatabaseService {
   static Database? _database;
@@ -142,6 +145,9 @@ class DatabaseService {
       if (tableNames.contains('collection_items')) {
         data['collection_items'] = await db.query('collection_items');
       }
+      if (tableNames.contains('ai_cache')) {
+        data['ai_cache'] = await db.query('ai_cache');
+      }
       if (tableNames.contains('app_meta')) {
         // Backup settings only, not FTS status or WOD
         data['app_meta'] = await db.query(
@@ -199,6 +205,17 @@ class DatabaseService {
             'collection_items',
             row,
             conflictAlgorithm: ConflictAlgorithm.ignore,
+          );
+        }
+      }
+
+      // Restore AI cache (best-effort; safe to drop if the table is gone)
+      if (data.containsKey('ai_cache')) {
+        for (final row in data['ai_cache']!) {
+          await txn.insert(
+            'ai_cache',
+            row,
+            conflictAlgorithm: ConflictAlgorithm.replace,
           );
         }
       }
@@ -314,6 +331,16 @@ class DatabaseService {
         added_at INTEGER NOT NULL,
         FOREIGN KEY(collection_id) REFERENCES collections(id) ON DELETE CASCADE,
         UNIQUE(collection_id, word, source)
+      )
+    ''');
+    // Cache for Gemini AI lookups, keyed by trimmed headword. Used when the
+    // local lexicon has no entry; persisting prevents us from hitting the
+    // API again for the same word across app launches.
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS ai_cache (
+        word TEXT PRIMARY KEY,
+        payload TEXT NOT NULL,
+        created_at INTEGER NOT NULL
       )
     ''');
   }
@@ -856,9 +883,52 @@ class DatabaseService {
   }
 
   // Double-quote and escape internal quotes for FTS5 phrase queries.
-  String _ftsEscape(String input) {
-    final escaped = input.replaceAll('"', '""');
-    return '"$escaped"';
+  String _ftsEscape(String input) => text_clean.ftsEscape(input);
+
+  // --- AI result cache -------------------------------------------------
+  //
+  // Words resolved via Gemini are expensive (network + billable) and the
+  // answer for a single headword does not change between runs. We keep a
+  // row per headword so the next lookup is instant even across launches.
+  //
+  // Returns null if there is no cached answer, or if the stored JSON is
+  // corrupt (treated as a miss so callers fall through to the API).
+  Future<Word?> getCachedAiWord(String word) async {
+    final trimmed = word.trim();
+    if (trimmed.isEmpty) return null;
+    final db = await database;
+    final rows = await db.query(
+      'ai_cache',
+      where: 'word = ?',
+      whereArgs: [trimmed],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    final payload = rows.first['payload']?.toString() ?? '';
+    if (payload.isEmpty) return null;
+    try {
+      final json = jsonDecode(payload) as Map<String, dynamic>;
+      return Word.fromJson(json);
+    } catch (e) {
+      debugPrint('Discarding corrupt ai_cache row for "$trimmed": $e');
+      await db.delete('ai_cache', where: 'word = ?', whereArgs: [trimmed]);
+      return null;
+    }
+  }
+
+  Future<void> cacheAiWord(String word, Word value) async {
+    final trimmed = word.trim();
+    if (trimmed.isEmpty) return;
+    final db = await database;
+    await db.insert(
+      'ai_cache',
+      {
+        'word': trimmed,
+        'payload': jsonEncode(value.toJson()),
+        'created_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   // Note: Dictionary tables are read-only. Words from Gemini API are not persisted
@@ -1029,10 +1099,9 @@ class DatabaseService {
     // in a fixed cycle instead of bouncing on the wall-clock epoch ms.
     try {
       final sources = DictionarySource.searchableDictionaries;
-      final seedDate = DateTime.parse(today);
-      final dayOrdinal = seedDate.millisecondsSinceEpoch ~/
-          Duration.millisecondsPerDay;
-      final sourceIndex = dayOrdinal.abs() % sources.length;
+      final dayOrdinal = wod_seed.dayOrdinalUtc(DateTime.parse(today));
+      final sourceIndex =
+          wod_seed.wodSourceIndex(dayOrdinal, sources.length);
       final chosenSource = sources[sourceIndex];
       final tableName = chosenSource.tableName;
 
