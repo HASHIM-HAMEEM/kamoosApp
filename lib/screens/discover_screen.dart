@@ -18,6 +18,7 @@ class DiscoverScreen extends StatefulWidget {
 
 class _DiscoverScreenState extends State<DiscoverScreen> {
   bool _isLoading = true;
+  Word? _wordOfTheDay;
   final Map<DictionarySource, List<Word>> _dictionaryWords = {};
 
   @override
@@ -30,26 +31,36 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     final db = Provider.of<DatabaseService>(context, listen: false);
 
     try {
-      final futures = DictionarySource.searchableDictionaries.map(
+      // Kick off WOD + every per-source sample in parallel. Sequential
+      // awaits would triple the time-to-paint on cold start.
+      final wodFuture = db.getWordOfTheDay();
+      final perSourceFutures = DictionarySource.searchableDictionaries.map(
         (source) => db
             .getRandomWords(source: source, limit: 3)
             .then((words) => MapEntry(source, words)),
       );
 
-      final results = await Future.wait(futures);
-
-      for (final entry in results) {
-        _dictionaryWords[entry.key] = entry.value;
+      final results = await Future.wait([wodFuture, ...perSourceFutures]);
+      _wordOfTheDay = results.first as Word?;
+      for (final entry in results.skip(1)) {
+        if (entry is MapEntry<DictionarySource, List<Word>>) {
+          _dictionaryWords[entry.key] = entry.value;
+        }
       }
 
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _reshuffleSource(DictionarySource source) async {
+    final db = Provider.of<DatabaseService>(context, listen: false);
+    final fresh = await db.getRandomWords(source: source, limit: 3);
+    if (!mounted) return;
+    setState(() => _dictionaryWords[source] = fresh);
   }
 
   @override
@@ -70,11 +81,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   padding: const EdgeInsets.all(AppTokens.spacing20),
                   itemCount:
                       DictionarySource.searchableDictionaries.length +
-                      1, // +1 for Header
+                      2, // Header + optional WOD
                   itemBuilder: (context, index) {
                     if (index == 0) {
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 24),
+                        padding: const EdgeInsets.only(bottom: 16),
                         child: Text(
                           strings.get('discover'),
                           style: TextStyle(
@@ -85,9 +96,21 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                         ),
                       );
                     }
+                    if (index == 1) {
+                      if (_wordOfTheDay == null) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 28),
+                        child: _buildWodCard(
+                          _wordOfTheDay!,
+                          colors,
+                          settings,
+                          strings,
+                        ),
+                      );
+                    }
 
                     final source =
-                        DictionarySource.searchableDictionaries[index - 1];
+                        DictionarySource.searchableDictionaries[index - 2];
                     final words = _dictionaryWords[source] ?? [];
 
                     if (words.isEmpty) return const SizedBox.shrink();
@@ -99,6 +122,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                           _getSourceTitle(source, strings),
                           _getSourceDescription(source, strings),
                           colors,
+                          onShuffle: () => _reshuffleSource(source),
                         ),
                         const SizedBox(height: 16),
                         _buildWordList(words, colors, settings),
@@ -143,24 +167,126 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     }
   }
 
-  Widget _buildSectionHeader(String title, String subtitle, AppColors colors) {
-    return Column(
+  Widget _buildSectionHeader(
+    String title,
+    String subtitle,
+    AppColors colors, {
+    VoidCallback? onShuffle,
+  }) {
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: colors.text,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: colors.text,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: TextStyle(fontSize: 14, color: colors.textSecondary),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: TextStyle(fontSize: 14, color: colors.textSecondary),
-        ),
+        if (onShuffle != null)
+          IconButton(
+            tooltip: 'Shuffle',
+            icon: Icon(
+              Icons.shuffle_rounded,
+              color: colors.textSecondary,
+              size: 20,
+            ),
+            onPressed: onShuffle,
+          ),
       ],
+    );
+  }
+
+  Widget _buildWodCard(
+    Word wod,
+    AppColors colors,
+    SettingsService settings,
+    AppLocalizations strings,
+  ) {
+    final preview = wod.meaning
+        .replaceAll('<br>', ' ')
+        .replaceAll(RegExp(r'<[^>]*>'), '')
+        .split('\n')
+        .first
+        .trim();
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ResultScreen(
+            wordText: wod.word,
+            filterSource: wod.source,
+            initialWord: wod,
+          ),
+        ),
+      ),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              colors.accent,
+              Color.lerp(colors.accent, Colors.black, 0.25)!,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(AppTokens.radius20),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              strings.get('word_of_the_day'),
+              style: TextStyle(
+                fontSize: 11,
+                letterSpacing: 1.2,
+                color: Colors.white.withValues(alpha: 0.85),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Directionality(
+              textDirection: TextDirection.rtl,
+              child: Text(
+                settings.formatText(wod.word),
+                style: AppTheme.arabicTextStyle(
+                  context,
+                  fontSize: 36,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Directionality(
+              textDirection: TextDirection.rtl,
+              child: Text(
+                preview,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.white.withValues(alpha: 0.9),
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
