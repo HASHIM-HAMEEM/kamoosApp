@@ -574,7 +574,7 @@ class _QamusHomeScreenState extends State<QamusHomeScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                              'WORD OF THE DAY',
+                              strings.get('word_of_the_day'),
                               style: TextStyle(
                                 fontSize: 11,
                                 letterSpacing: 1,

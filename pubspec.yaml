@@ -69,6 +69,9 @@ dependencies:
   flutter_native_splash: ^2.4.0
   flutter_animate: ^4.5.2
 
+  # Native share sheets (iOS share, Android intent).
+  share_plus: ^10.1.2
+
 dev_dependencies:
   # Launcher icons
   flutter_launcher_icons: ^0.14.1

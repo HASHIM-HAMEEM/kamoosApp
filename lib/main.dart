@@ -68,20 +68,32 @@ class MyApp extends StatelessWidget {
       ],
       child: Consumer<SettingsService>(
         builder: (context, settings, child) {
-          return MaterialApp(
-            title: 'Qamus - Arabic Dictionary',
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.light,
-            darkTheme: AppTheme.dark,
-            themeMode: settings.themeMode,
-            locale: settings.locale,
-            supportedLocales: const [Locale('en'), Locale('ur'), Locale('ar')],
-            localizationsDelegates: const [
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-            ],
-            home: const MainShell(),
+          final base = MediaQuery.of(context);
+          return MediaQuery(
+            // Fold the user's preferred scale into MediaQuery's base
+            // textScaler so every Text() in the tree picks it up.
+            data: base.copyWith(
+              textScaler: base.textScaler
+                  .clamp(
+                    minScaleFactor: settings.textScale,
+                    maxScaleFactor: settings.textScale,
+                  ),
+            ),
+            child: MaterialApp(
+              title: 'Qamus - Arabic Dictionary',
+              debugShowCheckedModeBanner: false,
+              theme: AppTheme.light,
+              darkTheme: AppTheme.dark,
+              themeMode: settings.themeMode,
+              locale: settings.locale,
+              supportedLocales: const [Locale('en'), Locale('ur'), Locale('ar')],
+              localizationsDelegates: const [
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              home: const MainShell(),
+            ),
           );
         },
       ),

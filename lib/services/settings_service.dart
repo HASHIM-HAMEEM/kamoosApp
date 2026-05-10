@@ -8,6 +8,7 @@ class SettingsService extends ChangeNotifier {
   Locale _locale = const Locale('en');
   bool _showDiacritics = true;
   ThemeMode _themeMode = ThemeMode.dark;
+  double _textScale = 1.0;
   bool _isLoaded = false;
 
   SettingsService(this._db) {
@@ -17,7 +18,14 @@ class SettingsService extends ChangeNotifier {
   Locale get locale => _locale;
   bool get showDiacritics => _showDiacritics;
   ThemeMode get themeMode => _themeMode;
+  double get textScale => _textScale;
   bool get isLoaded => _isLoaded;
+
+  /// Clamp to a sane range. Below 0.85 the UI chrome breaks; above 1.35
+  /// long Arabic words overflow cards. These match the stops exposed in
+  /// the settings slider.
+  static const double minTextScale = 0.85;
+  static const double maxTextScale = 1.35;
 
   AppLocalizations get strings => AppLocalizations(_locale);
 
@@ -25,6 +33,7 @@ class SettingsService extends ChangeNotifier {
     final langCode = await _db.getSetting('language_code');
     final diacritics = await _db.getSetting('show_diacritics');
     final theme = await _db.getSetting('theme_mode');
+    final scale = await _db.getSetting('text_scale');
 
     if (langCode != null) {
       _locale = Locale(langCode);
@@ -36,6 +45,13 @@ class SettingsService extends ChangeNotifier {
 
     if (theme != null) {
       _themeMode = _decodeTheme(theme);
+    }
+
+    if (scale != null) {
+      final parsed = double.tryParse(scale);
+      if (parsed != null) {
+        _textScale = parsed.clamp(minTextScale, maxTextScale);
+      }
     }
 
     _isLoaded = true;
@@ -63,6 +79,14 @@ class SettingsService extends ChangeNotifier {
   Future<void> toggleTheme() async {
     final isDark = _themeMode == ThemeMode.dark;
     await setThemeMode(isDark ? ThemeMode.light : ThemeMode.dark);
+  }
+
+  Future<void> setTextScale(double value) async {
+    final clamped = value.clamp(minTextScale, maxTextScale);
+    if ((clamped - _textScale).abs() < 0.001) return;
+    _textScale = clamped;
+    await _db.setSetting('text_scale', _textScale.toStringAsFixed(2));
+    notifyListeners();
   }
 
   String _encodeTheme(ThemeMode mode) {

@@ -326,7 +326,91 @@ class _MainShellState extends State<MainShell> with TickerProviderStateMixin {
                   () => settings.toggleDiacritics(!settings.showDiacritics),
                 ),
               ),
+              _buildDivider(colors),
+              _buildReadingSizeRow(colors, settings, strings),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReadingSizeRow(
+    AppColors colors,
+    SettingsService settings,
+    AppLocalizations strings,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFFFF9800).withValues(alpha: 0.15),
+                      const Color(0xFFFF9800).withValues(alpha: 0.05),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.format_size_rounded,
+                  size: 22,
+                  color: Color(0xFFFF9800),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      strings.get('reading_size'),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: colors.text,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      strings.get('reading_size_desc'),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${(settings.textScale * 100).round()}%',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: colors.accent,
+                ),
+              ),
+            ],
+          ),
+          Slider(
+            min: SettingsService.minTextScale,
+            max: SettingsService.maxTextScale,
+            divisions: 10,
+            value: settings.textScale,
+            activeColor: colors.accent,
+            inactiveColor: colors.border,
+            onChanged: (v) => settings.setTextScale(v),
           ),
         ],
       ),
