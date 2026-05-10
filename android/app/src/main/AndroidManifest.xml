@@ -9,7 +9,7 @@
         android:icon="@mipmap/ic_launcher"
         android:enableOnBackInvokedCallback="true">
         <activity
-            android:name="com.example.kamoos.MainActivity"
+            android:name="site.hashimhameem.kamoos.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""

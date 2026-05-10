@@ -14,6 +14,12 @@ import 'screens/main_shell.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _setHighRefreshRate();
+  //
+  // Note: .env is bundled as a Flutter asset (see pubspec.yaml). This means
+  // the Gemini API key ships inside release builds and can be extracted from
+  // the APK/IPA. Before public release, move the key behind a proxy endpoint
+  // or inject it via --dart-define at build time.
+  //
   await dotenv.load(fileName: '.env');
   runApp(const MyApp());
 }
@@ -27,30 +33,12 @@ Future<void> _setHighRefreshRate() async {
   }
 }
 
-class MyApp extends StatefulWidget {
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
-  @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
-  ThemeMode _themeMode = ThemeMode.dark; // Default to dark
-
-  void _toggleTheme() {
-    setState(() {
-      _themeMode = _themeMode == ThemeMode.dark
-          ? ThemeMode.light
-          : ThemeMode.dark;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
     final geminiKey = dotenv.env['GEMINI_API_KEY'];
-    debugPrint(
-      '🔑 Gemini API Key loaded: ${geminiKey != null && geminiKey.isNotEmpty ? "YES (${geminiKey.substring(0, 10)}...)" : "NO"}',
-    );
 
     return MultiProvider(
       providers: [
@@ -66,17 +54,11 @@ class _MyAppState extends State<MyApp> {
         ),
         Provider<ApiService?>(
           create: (_) {
-            if (geminiKey != null && geminiKey.isNotEmpty) {
-              try {
-                debugPrint('✅ Creating ApiService with Gemini API key');
-                return ApiService(apiKey: geminiKey);
-              } catch (e) {
-                debugPrint('❌ Failed to initialize ApiService: $e');
-                return null;
-              }
+            if (geminiKey == null || geminiKey.isEmpty) {
+              debugPrint('ApiService not created: no Gemini API key in .env');
+              return null;
             }
-            debugPrint('⚠️  ApiService not created: No API key found');
-            return null;
+            return ApiService(apiKey: geminiKey);
           },
         ),
         ProxyProvider2<DatabaseService, ApiService?, SearchService>(
@@ -86,20 +68,32 @@ class _MyAppState extends State<MyApp> {
       ],
       child: Consumer<SettingsService>(
         builder: (context, settings, child) {
-          return MaterialApp(
-            title: 'Qamus - Arabic Dictionary',
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.light,
-            darkTheme: AppTheme.dark,
-            themeMode: _themeMode,
-            locale: settings.locale,
-            supportedLocales: const [Locale('en'), Locale('ur'), Locale('ar')],
-            localizationsDelegates: [
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-            ],
-            home: MainShell(onToggleTheme: _toggleTheme),
+          final base = MediaQuery.of(context);
+          return MediaQuery(
+            // Fold the user's preferred scale into MediaQuery's base
+            // textScaler so every Text() in the tree picks it up.
+            data: base.copyWith(
+              textScaler: base.textScaler
+                  .clamp(
+                    minScaleFactor: settings.textScale,
+                    maxScaleFactor: settings.textScale,
+                  ),
+            ),
+            child: MaterialApp(
+              title: 'Qamus - Arabic Dictionary',
+              debugShowCheckedModeBanner: false,
+              theme: AppTheme.light,
+              darkTheme: AppTheme.dark,
+              themeMode: settings.themeMode,
+              locale: settings.locale,
+              supportedLocales: const [Locale('en'), Locale('ur'), Locale('ar')],
+              localizationsDelegates: const [
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              home: const MainShell(),
+            ),
           );
         },
       ),

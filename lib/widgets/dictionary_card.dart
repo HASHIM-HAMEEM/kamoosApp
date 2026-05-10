@@ -1,23 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/word.dart';
 import '../ui/theme/app_theme.dart';
 import '../ui/theme/tokens.dart';
 import '../services/database_service.dart';
 import '../services/settings_service.dart';
+import '../utils/text_clean.dart';
 
+/// A dictionary entry. The card is intentionally quiet — a 3px accent
+/// rule on the leading edge and a small chip identify the source without
+/// the heavy coloured banner the v1 card had, which read more like a
+/// chat bubble than a reference entry.
 class DictionaryCard extends StatefulWidget {
   final Word word;
   final bool isAi;
-  final VoidCallback? onShare;
 
-  const DictionaryCard({
-    super.key,
-    required this.word,
-    this.isAi = false,
-    this.onShare,
-  });
+  const DictionaryCard({super.key, required this.word, this.isAi = false});
 
   @override
   State<DictionaryCard> createState() => _DictionaryCardState();
@@ -29,26 +29,27 @@ class _DictionaryCardState extends State<DictionaryCard> {
   @override
   void initState() {
     super.initState();
-    _checkFavorite();
+    _refreshFavorite();
   }
 
-  Future<void> _checkFavorite() async {
-    if (widget.isAi) {
-      return; // Don't favorite AI results for now (or handle differently)
-    }
+  Future<void> _refreshFavorite() async {
+    if (widget.isAi) return; // AI rows aren't favoritable yet
     final db = Provider.of<DatabaseService>(context, listen: false);
     final isFav = await db.isFavorite(widget.word);
-    if (mounted) {
-      setState(() => _isFavorite = isFav);
-    }
+    if (mounted) setState(() => _isFavorite = isFav);
   }
 
   Future<void> _toggleFavorite() async {
     if (widget.isAi) return;
     final db = Provider.of<DatabaseService>(context, listen: false);
     await db.toggleFavorite(widget.word);
-    await _checkFavorite();
+    await _refreshFavorite();
   }
+
+  /// Plain-text version of the meaning, suitable for clipboard and share.
+  /// We preserve <br> line breaks and drop every other tag so the user
+  /// never sees `<span class=...>` noise outside the app.
+  String _plainMeaning() => plainMeaning(widget.word.meaning);
 
   @override
   Widget build(BuildContext context) {
@@ -65,244 +66,211 @@ class _DictionaryCardState extends State<DictionaryCard> {
         borderRadius: BorderRadius.circular(AppTokens.radius16),
         border: Border.all(
           color: widget.isAi
-              ? colors.accent.withValues(alpha: 0.5)
+              ? colors.accent.withValues(alpha: 0.35)
               : colors.border,
-          width: widget.isAi ? 1.5 : 1,
         ),
-        boxShadow: widget.isAi
-            ? [
-                BoxShadow(
-                  color: colors.accent.withValues(alpha: 0.1),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ]
-            : null,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: widget.isAi
-                  ? colors.accent.withValues(alpha: 0.1)
-                  : colors.bgSecondary,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(AppTokens.radius16 - 1),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Leading accent rule; brighter for AI rows.
+            Container(
+              width: 3,
+              decoration: BoxDecoration(
+                color: widget.isAi
+                    ? colors.accent
+                    : colors.accent.withValues(alpha: 0.45),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(AppTokens.radius16),
+                  bottomLeft: Radius.circular(AppTokens.radius16),
+                ),
               ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 10, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      widget.isAi ? Icons.auto_awesome : Icons.menu_book,
-                      size: 16,
-                      color: widget.isAi ? colors.accent : colors.textSecondary,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      sourceName,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: widget.isAi
-                            ? colors.accent
-                            : colors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    if (!widget.isAi)
-                      _buildIconButton(
-                        _isFavorite ? Icons.favorite : Icons.favorite_border,
-                        colors,
-                        onTap: _toggleFavorite,
-                        isActive: _isFavorite,
-                      ),
-                    const SizedBox(width: 8),
-                    if (!widget.isAi) ...[
-                      _buildIconButton(
-                        Icons.bookmark_add_outlined,
-                        colors,
-                        onTap: () => _showAddToCollectionSheet(context, colors),
-                      ),
-                      const SizedBox(width: 8),
+                    _buildHeader(colors, settings, sourceName),
+                    const SizedBox(height: 10),
+                    _buildMeanings(colors),
+                    if (widget.word.rootWord != null ||
+                        widget.word.examples != null) ...[
+                      const SizedBox(height: 12),
+                      Divider(color: colors.border, height: 1),
+                      const SizedBox(height: 10),
                     ],
-                    _buildIconButton(
-                      Icons.copy,
-                      colors,
-                      onTap: () {
-                        Clipboard.setData(
-                          ClipboardData(
-                            text:
-                                '${widget.word.word}\n\n${widget.word.meaning}',
-                          ),
-                        );
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(settings.strings.get('copied')),
-                              backgroundColor: colors.accent,
-                              behavior: SnackBarBehavior.floating,
-                              duration: const Duration(seconds: 1),
-                            ),
-                          );
-                        }
-                      },
-                    ),
+                    if (widget.word.rootWord != null)
+                      _buildRootRow(colors),
+                    if (widget.word.examples != null) _buildExamples(colors),
                   ],
                 ),
-              ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(
+    AppColors colors,
+    SettingsService settings,
+    String sourceName,
+  ) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        _SourceChip(
+          label: sourceName,
+          icon: widget.isAi ? Icons.auto_awesome : Icons.menu_book_rounded,
+          isAi: widget.isAi,
+          colors: colors,
+        ),
+        Row(
+          children: [
+            if (!widget.isAi)
+              _ActionIcon(
+                icon: _isFavorite
+                    ? Icons.favorite
+                    : Icons.favorite_border_rounded,
+                color: _isFavorite ? colors.accent : colors.textMuted,
+                onTap: _toggleFavorite,
+              ),
+            if (!widget.isAi)
+              _ActionIcon(
+                icon: Icons.bookmark_add_outlined,
+                color: colors.textMuted,
+                onTap: () => _showAddToCollectionSheet(context, colors),
+              ),
+            _ActionIcon(
+              icon: Icons.copy_rounded,
+              color: colors.textMuted,
+              onTap: () {
+                Clipboard.setData(
+                  ClipboardData(
+                    text: '${widget.word.word}\n\n${_plainMeaning()}',
+                  ),
+                );
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(settings.strings.get('copied')),
+                    backgroundColor: colors.accent,
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 1),
+                  ),
+                );
+              },
+            ),
+            _ActionIcon(
+              icon: Icons.ios_share_rounded,
+              color: colors.textMuted,
+              onTap: () {
+                SharePlus.instance.share(
+                  ShareParams(
+                    text: '${widget.word.word}\n\n${_plainMeaning()}\n\n— Kamoos',
+                    subject: widget.word.word,
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMeanings(AppColors colors) {
+    final meanings = <Widget>[];
+
+    if (widget.word.meaningEn != null && widget.word.meaningEn!.isNotEmpty) {
+      meanings.add(
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            widget.word.meaningEn!,
+            style: TextStyle(
+              fontSize: 15,
+              height: 1.5,
+              color: colors.text,
+            ),
+            textAlign: TextAlign.left,
+          ),
+        ),
+      );
+    }
+
+    if (widget.word.meaningUr != null && widget.word.meaningUr!.isNotEmpty) {
+      if (meanings.isNotEmpty) meanings.add(const SizedBox(height: 10));
+      meanings.add(
+        Directionality(
+          textDirection: TextDirection.rtl,
+          child: SizedBox(
+            width: double.infinity,
+            child: Text(
+              widget.word.meaningUr!,
+              style: TextStyle(
+                fontSize: 18,
+                height: 1.7,
+                color: colors.text,
+                fontFamily: 'Jameel Noori Nastaleeq',
+              ),
+              textAlign: TextAlign.right,
             ),
           ),
+        ),
+      );
+    }
 
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Word (with diacritics logic applied if needed, though usually meaning is what matters,
-                // but if we were displaying the headword prominently we'd use displayWord.
-                // Here the headword isn't explicitly shown in the card body, only in the result screen header usually.
-                // But wait, DictionaryCard is used in ResultScreen which shows the word at the top.
-                // DictionaryCard shows the MEANING.
-                // If the meaning contains Arabic text, we might want to strip diacritics there too?
-                // The user said "show diacticatics should work". Usually this applies to the headword.
-                // Let's check if DictionaryCard displays the headword. It doesn't seem to display the headword in the body, only meaning.
-                // However, ResultScreen displays the headword. I should check ResultScreen too.
-                // But wait, DictionaryCard is a list item.
-                // Let's assume the user wants the meaning text to be affected if it's Arabic?
-                // Or maybe they mean the headword in the result screen?
-                // I'll apply it to the meaning text if it looks like Arabic?
-                // Actually, meanings are usually mixed.
-                // Let's just apply it to the headword if it was shown.
-                // But wait, the previous code didn't show headword in card.
-                // Let's check ResultScreen.
+    if (meanings.isNotEmpty) meanings.add(const SizedBox(height: 10));
+    meanings.add(
+      Directionality(
+        textDirection: TextDirection.rtl,
+        child: SizedBox(
+          width: double.infinity,
+          child: Text(
+            _plainMeaning(),
+            style: AppTheme.arabicTextStyle(
+              context,
+              fontSize: 17,
+              color: widget.isAi ? colors.textSecondary : colors.text,
+            ),
+            textAlign: TextAlign.right,
+          ),
+        ),
+      ),
+    );
 
-                // English Meaning
-                if (widget.word.meaningEn != null &&
-                    widget.word.meaningEn!.isNotEmpty) ...[
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      widget.word.meaningEn!,
-                      style: TextStyle(
-                        fontSize: 16,
-                        height: 1.5,
-                        color: colors.text,
-                        fontFamily: 'Roboto',
-                      ),
-                      textAlign: TextAlign.left,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: meanings,
+    );
+  }
 
-                // Urdu Meaning
-                if (widget.word.meaningUr != null &&
-                    widget.word.meaningUr!.isNotEmpty) ...[
-                  Directionality(
-                    textDirection: TextDirection.rtl,
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: Text(
-                        widget.word.meaningUr!,
-                        style: TextStyle(
-                          fontSize: 18,
-                          height: 1.6,
-                          color: colors.text,
-                          fontFamily: 'NotoNastaliqUrdu',
-                        ),
-                        textAlign: TextAlign.right,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-
-                // Arabic Meaning
-                Directionality(
-                  textDirection: TextDirection.rtl,
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: Text(
-                      widget.word.meaning
-                          .replaceAll('<br>', '\n')
-                          .replaceAll(RegExp(r'<[^>]*>'), ''),
-                      style: TextStyle(
-                        fontSize: 16,
-                        height: 1.6,
-                        color: widget.isAi ? colors.textSecondary : colors.text,
-                      ),
-                      textAlign: TextAlign.right,
-                    ),
-                  ),
-                ),
-
-                // Extra Details (Root, Examples)
-                if (widget.word.rootWord != null ||
-                    widget.word.examples != null) ...[
-                  const SizedBox(height: 16),
-                  const Divider(),
-                  const SizedBox(height: 16),
-                ],
-
-                if (widget.word.rootWord != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      children: [
-                        Text(
-                          'Root: ',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: colors.textSecondary,
-                          ),
-                        ),
-                        Text(
-                          widget.word.rootWord!,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: colors.accent,
-                            fontFamily: 'NotoNaskhArabic',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                if (widget.word.examples != null)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Examples:',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        widget.word.examples!,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: colors.textSecondary,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
+  Widget _buildRootRow(AppColors colors) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Text(
+            'Root: ',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: colors.textSecondary,
+            ),
+          ),
+          Text(
+            widget.word.rootWord!,
+            style: AppTheme.arabicTextStyle(
+              context,
+              fontSize: 14,
+              color: colors.accent,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -310,28 +278,28 @@ class _DictionaryCardState extends State<DictionaryCard> {
     );
   }
 
-  Widget _buildIconButton(
-    IconData icon,
-    AppColors colors, {
-    VoidCallback? onTap,
-    bool isActive = false,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: isActive
-              ? colors.accent.withValues(alpha: 0.1)
-              : Colors.transparent,
-          shape: BoxShape.circle,
+  Widget _buildExamples(AppColors colors) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Examples',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: colors.textSecondary,
+          ),
         ),
-        child: Icon(
-          icon,
-          size: 18,
-          color: isActive ? colors.accent : colors.textMuted,
+        const SizedBox(height: 4),
+        Text(
+          widget.word.examples!,
+          style: TextStyle(
+            fontSize: 14,
+            color: colors.textSecondary,
+            fontStyle: FontStyle.italic,
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -343,6 +311,74 @@ class _DictionaryCardState extends State<DictionaryCard> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) => _AddToCollectionSheet(word: widget.word),
+    );
+  }
+}
+
+class _SourceChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isAi;
+  final AppColors colors;
+  const _SourceChip({
+    required this.label,
+    required this.icon,
+    required this.isAi,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: isAi
+            ? colors.accent.withValues(alpha: 0.1)
+            : colors.bgSecondary,
+        borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 13,
+            color: isAi ? colors.accent : colors.textSecondary,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: isAi ? colors.accent : colors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionIcon extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  const _ActionIcon({
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        child: Icon(icon, size: 18, color: color),
+      ),
     );
   }
 }
@@ -410,17 +446,16 @@ class _AddToCollectionSheetState extends State<_AddToCollectionSheet> {
                         context,
                         listen: false,
                       ).addToCollection(c['id'], widget.word);
-                      if (mounted && context.mounted) {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              '${settings.strings.get('added_to_collection')} ${c['name']}',
-                            ),
-                            backgroundColor: colors.accent,
+                      if (!mounted || !context.mounted) return;
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            '${settings.strings.get('added_to_collection')} ${c['name']}',
                           ),
-                        );
-                      }
+                          backgroundColor: colors.accent,
+                        ),
+                      );
                     },
                   ),
                 ),

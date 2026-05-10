@@ -1,4 +1,4 @@
-package com.example.kamoos
+package site.hashimhameem.kamoos
 
 import android.os.Build
 import android.os.Bundle

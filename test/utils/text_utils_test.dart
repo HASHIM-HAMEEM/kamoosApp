@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:arabic_dictionary_app/utils/text_utils.dart';
+import 'package:kamoos/utils/text_utils.dart';
 
 void main() {
   group('splitMeaning', () {

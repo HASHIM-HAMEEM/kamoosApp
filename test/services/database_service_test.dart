@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:arabic_dictionary_app/services/database_service.dart';
+import 'package:kamoos/services/database_service.dart';
 
 void main() {
   late DatabaseService databaseService;

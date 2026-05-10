@@ -25,12 +25,12 @@ class ApiService {
   ApiService({this.apiKey, String? modelName, http.Client? client})
     : modelName = (modelName != null && modelName.trim().isNotEmpty)
           ? modelName.trim()
-          : 'gemini-2.0-flash-exp',
+          : 'gemini-2.5-flash',
       _client = client ?? http.Client() {
     if (apiKey == null || apiKey!.isEmpty) {
       throw Exception('API key is required for Gemini service');
     }
-    debugPrint('✨ ApiService initialized with model: $modelName');
+    debugPrint('ApiService initialized with model: ${this.modelName}');
   }
 
   /// Clear the cache (useful for testing or manual refresh)
@@ -51,7 +51,9 @@ class ApiService {
     final uri = Uri.parse(
       'https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey',
     );
-    debugPrint('📤 Sending request to Gemini ($label)...');
+    // Note: using v1beta because responseSchema with responseMimeType=application/json
+    // is only available on v1beta; v1 accepts the call but ignores the schema.
+    debugPrint('Sending request to Gemini ($label)...');
 
     final requestBody = {
       'contents': [
@@ -71,16 +73,22 @@ class ApiService {
         'responseSchema': schema,
       },
       'safetySettings': [
-        {'category': 'HARM_CATEGORY_HATE_SPEECH', 'threshold': 'BLOCK_NONE'},
+        {
+          'category': 'HARM_CATEGORY_HATE_SPEECH',
+          'threshold': 'BLOCK_ONLY_HIGH',
+        },
         {
           'category': 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-          'threshold': 'BLOCK_NONE',
+          'threshold': 'BLOCK_ONLY_HIGH',
         },
         {
           'category': 'HARM_CATEGORY_DANGEROUS_CONTENT',
-          'threshold': 'BLOCK_NONE',
+          'threshold': 'BLOCK_ONLY_HIGH',
         },
-        {'category': 'HARM_CATEGORY_HARASSMENT', 'threshold': 'BLOCK_NONE'},
+        {
+          'category': 'HARM_CATEGORY_HARASSMENT',
+          'threshold': 'BLOCK_ONLY_HIGH',
+        },
       ],
     };
 

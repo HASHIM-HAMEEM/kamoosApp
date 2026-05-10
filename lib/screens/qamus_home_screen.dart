@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../ui/theme/app_theme.dart';
@@ -24,6 +26,12 @@ class _QamusHomeScreenState extends State<QamusHomeScreen> {
   List<Word> _recentSearches = [];
   Word? _wordOfTheDay;
   bool _isLoading = false;
+
+  /// Cache suggestions in-flight so Autocomplete's rapid rebuilds don't
+  /// trigger a fresh DB query on every keystroke.
+  Timer? _suggestionDebounce;
+  String _lastSuggestionQuery = '';
+  List<Word> _lastSuggestions = const [];
 
   @override
   void initState() {
@@ -94,6 +102,32 @@ class _QamusHomeScreenState extends State<QamusHomeScreen> {
       return settings.strings.get('source_all');
     }
     return source.arabicName;
+  }
+
+  /// Debounce Autocomplete's optionsBuilder: Flutter rebuilds the field on
+  /// every keystroke and focus change. Without this the DB (and an isolate
+  /// for ranking) are hit on every character.
+  Future<Iterable<Word>> _fetchSuggestions(String query) async {
+    if (query == _lastSuggestionQuery && _lastSuggestions.isNotEmpty) {
+      return _lastSuggestions;
+    }
+
+    _suggestionDebounce?.cancel();
+    final completer = Completer<List<Word>>();
+    _suggestionDebounce = Timer(const Duration(milliseconds: 180), () async {
+      final searchService = Provider.of<SearchService>(context, listen: false);
+      final results = await searchService.getSearchSuggestions(
+        query,
+        source: _selectedSource == DictionarySource.all
+            ? null
+            : _selectedSource,
+      );
+      _lastSuggestionQuery = query;
+      _lastSuggestions = results;
+      if (!completer.isCompleted) completer.complete(results);
+    });
+
+    return completer.future;
   }
 
   @override
@@ -177,7 +211,7 @@ class _QamusHomeScreenState extends State<QamusHomeScreen> {
                 child: Column(
                   children: [
                     Text(
-                      'Where Arabic Begins',
+                      strings.get('tagline_primary'),
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 32,
@@ -188,7 +222,7 @@ class _QamusHomeScreenState extends State<QamusHomeScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'حيث تبدأ العربية',
+                      strings.get('tagline_arabic'),
                       textAlign: TextAlign.center,
                       style: AppTheme.arabicTextStyle(
                         context,
@@ -206,18 +240,11 @@ class _QamusHomeScreenState extends State<QamusHomeScreen> {
                           return Autocomplete<Word>(
                             optionsBuilder:
                                 (TextEditingValue textEditingValue) async {
-                                  if (textEditingValue.text.trim().isEmpty) {
+                                  final q = textEditingValue.text.trim();
+                                  if (q.isEmpty) {
                                     return const Iterable<Word>.empty();
                                   }
-                                  final searchService =
-                                      Provider.of<SearchService>(
-                                        context,
-                                        listen: false,
-                                      );
-                                  return await searchService
-                                      .getSearchSuggestions(
-                                        textEditingValue.text.trim(),
-                                      );
+                                  return await _fetchSuggestions(q);
                                 },
                             displayStringForOption: (Word option) =>
                                 option.word,
@@ -547,12 +574,12 @@ class _QamusHomeScreenState extends State<QamusHomeScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'WORD OF THE DAY',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  letterSpacing: 1,
-                                  color: Colors.white.withValues(alpha: 0.8),
-                                ),
+                              strings.get('word_of_the_day'),
+                              style: TextStyle(
+                                fontSize: 11,
+                                letterSpacing: 1,
+                                color: Colors.white.withValues(alpha: 0.8),
+                              ),
                               ),
                               const SizedBox(height: 16),
                               Align(
@@ -620,7 +647,7 @@ class _QamusHomeScreenState extends State<QamusHomeScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'RECENT SEARCHES',
+                            strings.get('recent_searches'),
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -641,7 +668,7 @@ class _QamusHomeScreenState extends State<QamusHomeScreen> {
                                 _recentSearches = [];
                               });
                             },
-                            tooltip: 'Clear all',
+                            tooltip: strings.get('clear_all'),
                           ),
                         ],
                       ),
@@ -760,6 +787,7 @@ class _QamusHomeScreenState extends State<QamusHomeScreen> {
 
   @override
   void dispose() {
+    _suggestionDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }

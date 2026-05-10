@@ -1,0 +1,12 @@
+name: kamoos_pure_tests
+description: >
+  Pure-Dart test harness for Kamoos. The Flutter test runner needs a full
+  Flutter SDK; this harness lets CI (and a plain Dart install) run the
+  parts of the codebase that don't depend on Flutter widgets: Arabic
+  text normalization, suggestion scoring, HTML cleanup, FTS escaping,
+  and the deterministic Word-of-the-Day seed.
+publish_to: none
+environment:
+  sdk: ^3.5.0
+dev_dependencies:
+  test: ^1.25.0
