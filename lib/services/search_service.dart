@@ -1,11 +1,10 @@
-import 'dart:async';
 import 'dart:collection';
 import 'package:flutter/foundation.dart';
-import 'package:arabic_dictionary_app/services/api_service.dart';
 import '../utils/ranking.dart';
+import 'api_service.dart';
 import '../models/word.dart';
 import '../models/dictionary_source.dart';
-import '../services/database_service.dart';
+import 'database_service.dart';
 
 // Ranking moved to: lib/utils/ranking.dart
 
@@ -23,54 +22,38 @@ class SearchService {
     );
   }
 
-  // Search for a word - first check database, then API if not found
+  // Search for a word - first check database fully, then fall back to the
+  // AI API only if the DB has no entry. The earlier 150ms race caused the
+  // AI to be called for words that were already in the local dictionary,
+  // wasting API quota and overriding authoritative lexicon entries.
   Future<Word?> searchWord(String word, {DictionarySource? source}) async {
     final trimmed = word.trim();
     debugPrint(
       '🔎 Searching for word: "$trimmed" (source: ${source?.arabicName ?? "all"})',
     );
 
-    final dbFuture = databaseService.getWord(trimmed, source: source);
-
-    try {
-      final earlyDb = await dbFuture.timeout(
-        const Duration(milliseconds: 150),
-        onTimeout: () => throw TimeoutException('DB timeout'),
+    final dbHit = await databaseService.getWord(trimmed, source: source);
+    if (dbHit != null) {
+      debugPrint(
+        '✅ Found in database: ${dbHit.source?.arabicName ?? "unknown source"}',
       );
-      if (earlyDb != null) {
-        debugPrint(
-          '✅ Found in database: ${earlyDb.source?.arabicName ?? "unknown source"}',
-        );
-        return earlyDb;
-      }
-    } on TimeoutException {
-      debugPrint('⏱️ Database timeout, trying AI...');
+      return dbHit;
     }
 
     if (apiService != null) {
-      final key = trimmed;
-      final cached = _aiCache[key];
+      final cached = _aiCache[trimmed];
       if (cached != null) {
         debugPrint('🗂️  Using cached AI result');
         return cached;
       }
-      debugPrint('🤖 Calling Gemini API for word: "$trimmed"');
+      debugPrint('🤖 DB miss, asking Gemini for: "$trimmed"');
       final ai = await apiService!.getWordMeaning(trimmed);
       if (ai != null) {
-        debugPrint('✅ Gemini API returned result');
-        _aiCache[key] = ai;
+        _aiCache[trimmed] = ai;
         return ai;
       }
     } else {
       debugPrint('⚠️  ApiService is null - cannot call Gemini');
-    }
-
-    final finalDb = await dbFuture;
-    if (finalDb != null) {
-      debugPrint(
-        '✅ Found in database (late): ${finalDb.source?.arabicName ?? "unknown source"}',
-      );
-      return finalDb;
     }
 
     return null;

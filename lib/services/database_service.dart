@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/word.dart';
 import '../models/dictionary_source.dart';
+import '../utils/ranking.dart' as ranking;
 
 class DatabaseService {
   static Database? _database;
@@ -146,7 +147,7 @@ class DatabaseService {
         data['app_meta'] = await db.query(
           'app_meta',
           where:
-              "key NOT IN ('fts_index_built', 'wod_date', 'wod_word', 'wod_source')",
+              "key NOT IN ('fts_index_built', 'fts_schema_version', 'wod_date', 'wod_word', 'wod_source')",
         );
       }
     } catch (e) {
@@ -317,101 +318,119 @@ class DatabaseService {
     ''');
   }
 
-  // Build FTS5 index over dictionary content (one-time)
+  // Build FTS5 index over dictionary content (one-time).
+  //
+  // Columns:
+  //  - headword_raw:  original headword with diacritics, for exact hits
+  //  - headword_norm: diacritic-stripped/variant-unified headword, for fuzzy
+  //  - root_norm:     trilateral/quadrilateral root, normalized. Enables
+  //                   "type the root, get the family" lookups (typing كتب
+  //                   should surface كتاب/مكتبة/كاتب/مكتوب).
+  //  - meaning:       full meaning text, used for content search (not for
+  //                   the prefix suggestion list).
+  //  - source:        dictionary table name, used as a filter.
+  //
+  // The schema version is tracked in app_meta so changing the schema bumps
+  // `_kFtsSchemaVersion` and rebuilds the index on next launch.
+  static const int _kFtsSchemaVersion = 3;
+
   Future<void> _ensureFtsIndex(Database db) async {
     if (!_ftsAvailable) return;
     try {
       final tableExists = await db.rawQuery(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='entries_fts' LIMIT 1",
       );
-      final built = await db.rawQuery(
-        "SELECT value FROM app_meta WHERE key='fts_index_built' LIMIT 1",
+      final builtRow = await db.rawQuery(
+        "SELECT value FROM app_meta WHERE key='fts_schema_version' LIMIT 1",
       );
-      final isBuilt = built.isNotEmpty && built.first['value'] == '1';
+      final currentVersion = builtRow.isNotEmpty
+          ? int.tryParse(builtRow.first['value']?.toString() ?? '') ?? 0
+          : 0;
+      final schemaCurrent =
+          tableExists.isNotEmpty && currentVersion == _kFtsSchemaVersion;
 
-      if (tableExists.isNotEmpty) {
-        if (isBuilt) return;
+      if (schemaCurrent) {
         final count = Sqflite.firstIntValue(
           await db.rawQuery('SELECT COUNT(*) FROM entries_fts'),
         );
-        if ((count ?? 0) > 0) {
-          await db.insert('app_meta', {
-            'key': 'fts_index_built',
-            'value': '1',
-          }, conflictAlgorithm: ConflictAlgorithm.replace);
-          return;
-        }
-      } else if (isBuilt) {
-        await db.delete(
-          'app_meta',
-          where: 'key = ?',
-          whereArgs: ['fts_index_built'],
-        );
+        if ((count ?? 0) > 0) return;
+      }
+
+      // Schema changed or empty: drop and rebuild.
+      if (tableExists.isNotEmpty) {
+        await db.execute('DROP TABLE IF EXISTS entries_fts');
       }
 
       await db.execute(
-        "CREATE VIRTUAL TABLE IF NOT EXISTS entries_fts USING fts5(headword_raw, headword_norm, meaning, source, tokenize='unicode61 remove_diacritics 2')",
+        "CREATE VIRTUAL TABLE entries_fts USING fts5("
+        "headword_raw, headword_norm, root_norm, meaning, source, "
+        "tokenize='unicode61 remove_diacritics 2')",
       );
 
       await db.transaction((txn) async {
         await txn.delete('entries_fts');
 
-        Future<void> insertRows(
-          String headSql,
-          List<List<Object?>> rows,
-        ) async {
+        Future<void> insertRows(List<List<Object?>> rows) async {
           final batch = txn.batch();
           for (final r in rows) {
             batch.rawInsert(
-              'INSERT INTO entries_fts (headword_raw, headword_norm, meaning, source) VALUES (?,?,?,?)',
+              'INSERT INTO entries_fts (headword_raw, headword_norm, root_norm, meaning, source) VALUES (?,?,?,?,?)',
               r,
             );
           }
           await batch.commit(noResult: true);
         }
 
-        // Populate from each dictionary
+        // Populate from each dictionary.
         for (final s in DictionarySource.searchableDictionaries) {
           final t = s.tableName;
           List<Map<String, Object?>> maps = [];
           switch (s) {
             case DictionarySource.ghoni:
               maps = await txn.rawQuery(
-                'SELECT arabic_word AS hw, arabic_noharokah AS hwn, arabic_meanings AS m FROM $t',
+                'SELECT arabic_word AS hw, arabic_noharokah AS hwn, arabic_root AS root, arabic_meanings AS m FROM $t',
               );
               break;
             case DictionarySource.lisanularab:
               maps = await txn.rawQuery(
-                'SELECT arabic_noharokah AS hw, arabic_noharokah AS hwn, arabic_meanings AS m FROM $t',
+                'SELECT arabic_noharokah AS hw, arabic_noharokah AS hwn, arabic_root AS root, arabic_meanings AS m FROM $t',
               );
               break;
             case DictionarySource.ghoribulquran:
               maps = await txn.rawQuery(
-                'SELECT arabic_noharokah AS hw, arabic_noharokah AS hwn, meaning AS m FROM $t',
+                'SELECT arabic_noharokah AS hw, arabic_noharokah AS hwn, arabic_root AS root, meaning AS m FROM $t',
               );
               break;
             default:
               maps = await txn.rawQuery(
-                'SELECT word AS hw, word AS hwn, meaning AS m FROM $t',
+                'SELECT word AS hw, word AS hwn, NULL AS root, meaning AS m FROM $t',
               );
           }
           final rows = <List<Object?>>[];
           for (final row in maps) {
             final raw = (row['hw'] ?? '').toString();
             final norm = _normalizeArabic((row['hwn'] ?? raw).toString());
+            final root = row['root'] == null
+                ? ''
+                : _normalizeArabic(row['root'].toString());
             final meaning = (row['m'] ?? '').toString();
             if (raw.isEmpty && meaning.isEmpty) continue;
-            rows.add([raw, norm, meaning, s.tableName]);
+            rows.add([raw, norm, root, meaning, s.tableName]);
             if (rows.length >= 500) {
-              await insertRows('entries_fts', rows);
+              await insertRows(rows);
               rows.clear();
             }
           }
           if (rows.isNotEmpty) {
-            await insertRows('entries_fts', rows);
+            await insertRows(rows);
           }
         }
 
+        await txn.insert('app_meta', {
+          'key': 'fts_schema_version',
+          'value': _kFtsSchemaVersion.toString(),
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        // Keep legacy flag for back-compat; read path ignores it.
         await txn.insert('app_meta', {
           'key': 'fts_index_built',
           'value': '1',
@@ -430,30 +449,22 @@ class DatabaseService {
     }
   }
 
-  // Normalize Arabic (strip diacritics and unify common variants) for matching
-  String _normalizeArabic(String input) {
-    final diacritics = RegExp(r'[\u064B-\u065F\u0670]');
-    var out = input.replaceAll(diacritics, '');
-    out = out.replaceAll('\u0640', ''); // Tatweel
-    out = out
-        .replaceAll('أ', 'ا')
-        .replaceAll('إ', 'ا')
-        .replaceAll('آ', 'ا')
-        .replaceAll('\u0671', 'ا')
-        .replaceAll('ٱ', 'ا')
-        .replaceAll('ى', 'ي');
-    return out;
-  }
+  // Normalize Arabic (strip diacritics and unify common variants) for matching.
+  // Delegates to [ranking.normalizeArabic] so the DB layer, the FTS layer
+  // and the suggestion ranker agree on what "normalized" means.
+  String _normalizeArabic(String input) => ranking.normalizeArabic(input);
 
   Future<Map<String, dynamic>?> _getRandomRow(
     Database db,
-    String tableName,
-  ) async {
+    String tableName, {
+    Random? rng,
+  }) async {
     final maxRowId = Sqflite.firstIntValue(
       await db.rawQuery('SELECT MAX(rowid) FROM $tableName'),
     );
     if (maxRowId == null || maxRowId <= 0) return null;
-    final seed = _random.nextInt(maxRowId) + 1;
+    final r = rng ?? _random;
+    final seed = r.nextInt(maxRowId) + 1;
     final maps = await db.rawQuery(
       'SELECT rowid AS _rid, * FROM $tableName WHERE rowid >= ? LIMIT 1',
       [seed],
@@ -732,19 +743,13 @@ class DatabaseService {
       }
     }
 
-    // Sort by relevance using normalized equality and prefix boosts
-    int score(Word w) {
-      final wn = _normalizeArabic(w.word);
-      int s = 0;
-      if (wn != qn) s += 4;
-      if (w.word != query) s += 2;
-      if (!wn.startsWith(qn)) s += 2;
-      if (!w.word.startsWith(query)) s += 1;
-      if (!wn.contains(qn)) s += 1;
-      return s;
-    }
-
-    allResults.sort((a, b) => score(a).compareTo(score(b)));
+    // Sort by relevance using the shared scorer (same one the isolate uses
+    // for suggestion re-ranking). Exact > normalized-exact > prefix > contains.
+    allResults.sort(
+      (a, b) => ranking.scoreSuggestion(query, a.word).compareTo(
+        ranking.scoreSuggestion(query, b.word),
+      ),
+    );
 
     return allResults.take(limit).toList();
   }
@@ -798,21 +803,31 @@ class DatabaseService {
     return results;
   }
 
-  // FTS-backed search across all sources
+  // FTS-backed search across all sources. Searches headword_raw /
+  // headword_norm / root_norm — NOT meaning. Meaning is excluded from the
+  // suggestion list because a single word in a long definition would
+  // otherwise flood the dropdown and drown out real headword hits.
+  //
+  // Escapes the FTS5 query token to prevent the user's input from being
+  // interpreted as an FTS operator (AND/OR/NEAR/etc).
   Future<List<Word>> _searchWordsFts(String query, int limit) async {
     if (!_ftsAvailable) return [];
     final db = await database;
     final qn = _normalizeArabic(query);
     try {
-      // Ensure FTS structures exist before querying
       await _ensureMetaTable(db);
       await _ensureFtsIndex(db);
       if (!_ftsAvailable) return [];
-      // Prefer headword prefix matches, then meaning
+      final escapedRaw = _ftsEscape(query);
+      final escapedNorm = _ftsEscape(qn);
       final match =
-          'headword_norm:"$qn*" OR headword_raw:"$query*" OR meaning:"$query*"';
+          'headword_norm:$escapedNorm* '
+          'OR headword_raw:$escapedRaw* '
+          'OR root_norm:$escapedNorm';
       final rows = await db.rawQuery(
-        'SELECT headword_raw, headword_norm, meaning, source, bm25(entries_fts) AS rank FROM entries_fts WHERE entries_fts MATCH ? ORDER BY rank LIMIT ?',
+        'SELECT headword_raw, headword_norm, meaning, source, '
+        'bm25(entries_fts) AS rank FROM entries_fts '
+        'WHERE entries_fts MATCH ? ORDER BY rank LIMIT ?',
         [match, limit],
       );
       final out = <Word>[];
@@ -838,6 +853,12 @@ class DatabaseService {
       debugPrint('FTS search failed: $e');
       return [];
     }
+  }
+
+  // Double-quote and escape internal quotes for FTS5 phrase queries.
+  String _ftsEscape(String input) {
+    final escaped = input.replaceAll('"', '""');
+    return '"$escaped"';
   }
 
   // Note: Dictionary tables are read-only. Words from Gemini API are not persisted
@@ -872,6 +893,13 @@ class DatabaseService {
 
   // --- User Data Methods ---
 
+  /// Recent searches, newest first.
+  ///
+  /// Previously this method did an O(N) serial `getWord` per row (which
+  /// fans out into many SQL queries each), making the Library tab slow
+  /// for long history lists. We now issue the lookups in parallel and
+  /// skip the dictionary enrichment entirely — the Library UI only needs
+  /// the query string; it re-resolves the full word when the user taps.
   Future<List<Word>> getSearchHistory({int limit = 10, int offset = 0}) async {
     final db = await database;
     final maps = await db.query(
@@ -880,20 +908,10 @@ class DatabaseService {
       limit: limit,
       offset: offset,
     );
-
-    List<Word> historyWords = [];
-    for (var m in maps) {
-      String query = m['query'] as String;
-      Word? wordDetails = await getWord(query);
-      if (wordDetails != null) {
-        historyWords.add(wordDetails);
-      } else {
-        historyWords.add(
-          Word(word: query, meaning: 'Tap to search', source: null),
-        );
-      }
-    }
-    return historyWords;
+    return [
+      for (final m in maps)
+        Word(word: m['query'] as String, meaning: '', source: null),
+    ];
   }
 
   // Clear all search history
@@ -1006,18 +1024,25 @@ class DatabaseService {
       }
     }
 
-    // Generate new WOD
+    // Generate a new WOD. Deterministic: the same day picks the same source
+    // and seeded row. This also means the rotation visits every source
+    // in a fixed cycle instead of bouncing on the wall-clock epoch ms.
     try {
-      // Randomly select a source
       final sources = DictionarySource.searchableDictionaries;
-      final randomSource =
-          sources[DateTime.now().millisecondsSinceEpoch % sources.length];
-      final tableName = randomSource.tableName;
+      final seedDate = DateTime.parse(today);
+      final dayOrdinal = seedDate.millisecondsSinceEpoch ~/
+          Duration.millisecondsPerDay;
+      final sourceIndex = dayOrdinal.abs() % sources.length;
+      final chosenSource = sources[sourceIndex];
+      final tableName = chosenSource.tableName;
 
-      final row = await _getRandomRow(db, tableName);
+      // Use a deterministic random for the row pick so debugging and
+      // re-installs on the same day still produce the same WOD.
+      final rowRng = Random(dayOrdinal);
+      final row = await _getRandomRow(db, tableName, rng: rowRng);
 
       if (row != null) {
-        final word = Word.fromMap(row, source: randomSource);
+        final word = Word.fromMap(row, source: chosenSource);
 
         // Store in meta
         await db.insert('app_meta', {
@@ -1030,7 +1055,7 @@ class DatabaseService {
         }, conflictAlgorithm: ConflictAlgorithm.replace);
         await db.insert('app_meta', {
           'key': 'wod_source',
-          'value': randomSource.tableName,
+          'value': chosenSource.tableName,
         }, conflictAlgorithm: ConflictAlgorithm.replace);
 
         return word;
